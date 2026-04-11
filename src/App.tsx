@@ -860,9 +860,7 @@ const perfTotals = useMemo(() => {
   const tNmvLY = d.reduce((a: number, s: any) => a + (s.nmv_ly || 0), 0);
   const tSpend = d.reduce((a: number, s: any) => a + s.total_spend, 0);
   const tP24fbs = d.reduce((a: number, s: any) => a + s.promise_24h_fbs, 0);
-  const tPfbs = d.reduce((a: number, s: any) => a + s.promise_total_fbs, 0);
   const tP24fbf = d.reduce((a: number, s: any) => a + s.promise_24h_fbf, 0);
-  const tPfbf = d.reduce((a: number, s: any) => a + s.promise_total_fbf, 0);
   const tPtot = d.reduce((a: number, s: any) => a + s.promise_total, 0);
   const tOU = d.reduce((a: number, s: any) => a + s.ou_autogestionado, 0);
   const tFS = d.reduce((a: number, s: any) => a + s.fs_autogestionado, 0);
