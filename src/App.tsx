@@ -2891,7 +2891,7 @@ const weeklyChart = useMemo(() => {
               </div>
               {!rendSellerPick ? (
                 <div style={{ textAlign: 'center', padding: 50, color: C.textMuted }}><div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>Selecciona un seller</div>
-              ) : <SellerPerfDetail p={rendSellerPick} />}
+              ) :}
             </>)}
           </div>
         )}
