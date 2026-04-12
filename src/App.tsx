@@ -448,6 +448,7 @@ const ViewToggle = (props: { mode: ViewMode; onChange: (m: ViewMode) => void }) 
     ))}
   </div>
 );
+
 const RendPill = (props: { label: string; active: boolean; onClick: () => void }) => (
   <button onClick={props.onClick} style={{
     padding: '6px 16px', borderRadius: 20, fontSize: 12, fontWeight: 600,
@@ -483,6 +484,7 @@ const RTable = memo(function RTable(props: { columns: any[]; data: any[]; onRowC
     </div>
   );
 });
+
 const CSS_STYLES =
   "@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');" +
   '@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}' +
@@ -503,9 +505,10 @@ const CSS_STYLES =
   '.recharts-wrapper svg{overflow:visible!important}' +
   '@media(max-width:1024px){.grid-3{grid-template-columns:1fr 1fr!important}.grid-2{grid-template-columns:1fr!important}.recharts-label-list text{display:none!important}}' +
   '@media(max-width:640px){.grid-3{grid-template-columns:1fr!important}.header-wrap{flex-direction:column;align-items:flex-start!important}.filter-bar{flex-direction:column}.filter-bar>*{width:100%!important;flex:unset!important}.hunt-head,.sell-head{display:none!important}.hunt-row,.sell-row{grid-template-columns:1fr!important;gap:4px}}';
-  const ttS = { background: C.bgCard, border: '1px solid ' + C.border, borderRadius: 10, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,.08)' };
 
-  /* ──────────────────────────────────────────────────────────────
+const ttS = { background: C.bgCard, border: '1px solid ' + C.border, borderRadius: 10, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,.08)' };
+
+/* ──────────────────────────────────────────────────────────────
   DASHBOARD TYPES
 ────────────────────────────────────────────────────────────── */
 type MonthlyRow = { name: MonthShort; idx: number } & Record<SellerPlan, number> & { total: number };
@@ -516,6 +519,74 @@ type GroupedByCat = {
   monthTotals: number[];
   yearTotal: number;
   planBreakdown: Record<SellerPlan, { count: number; sellers: Seller[] }>;
+};
+
+/* ──────────────────────────────────────────────────────────────
+  SELLER PERF DETAIL — definido fuera de App para acceso global
+────────────────────────────────────────────────────────────── */
+const SellerPerfDetail = ({ p, sellers: _sellers }: { p: any; sellers: Seller[] }) => {
+  const g = p.nmv_ly > 0 ? ((p.nmv - p.nmv_ly) / p.nmv_ly * 100).toFixed(1) : '0';
+  const spR = p.nmv > 0 ? (p.total_spend / p.nmv * 100).toFixed(1) : '0';
+  const olt = p.promise_total > 0 ? ((p.promise_24h_fbs + p.promise_24h_fbf) / p.promise_total * 100).toFixed(1) : '0';
+  const promoR = p.nmv > 0 ? ((p.ou_autogestionado + p.fs_autogestionado) / p.nmv * 100).toFixed(1) : '0';
+  const genSS = (p.skus_branded + p.skus_generic) > 0 ? (p.skus_generic / (p.skus_branded + p.skus_generic) * 100).toFixed(1) : '0';
+  const radarD = [
+    { m: 'Fplus', v: ((p.final_score || 0) / 5) * 100 },
+    { m: 'Content', v: p.content_score || 0 },
+    { m: 'SP', v: Math.min(Number(spR) / 6 * 100, 100) },
+    { m: 'OLT24', v: Number(olt) },
+    { m: 'Promo', v: Math.min(Number(promoR) / 15 * 100, 100) },
+    { m: 'Gen', v: Math.max(100 - Number(genSS) * 5, 0) },
+  ];
+  const sl = _sellers.find((s) => s.sid === p.sellerId);
+  return (
+    <div className="fi">
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+        <KpiCard label="NMV MtD" value={fmt(p.nmv)} color={Number(g) > 0 ? C.primary : C.danger} sub={<span style={{ fontSize: 11, color: Number(g) > 0 ? C.primary : C.danger, fontWeight: 700 }}>YoY {Number(g) > 0 ? '+' : ''}{g}%</span>} />
+        <KpiCard label="Fplus" value={String(Number(p.final_score || 0).toFixed(2))} color={(p.final_score || 0) >= 4.8 ? C.primary : C.warning} />
+        <KpiCard label="Content" value={String(Number(p.content_score || 0).toFixed(1))} color={(p.content_score || 0) >= 85 ? C.primary : C.danger} />
+        <KpiCard label="SP Ratio" value={spR + '%'} color={Number(spR) > 0 ? C.tertiary : C.danger} />
+        <KpiCard label="OLT 24h" value={olt + '%'} color={Number(olt) >= 30 ? C.cyan : C.danger} />
+        <KpiCard label="Promo" value={promoR + '%'} color={Number(promoR) > 0 ? C.purple : C.danger} />
+      </div>
+      <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="card" style={{ padding: 16 }}>
+          <h3 style={{ margin: '0 0 10px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Scorecard</h3>
+          <ResponsiveContainer width="100%" height={180}>
+            <RadarChart data={radarD}>
+              <PolarGrid stroke={C.border} />
+              <PolarAngleAxis dataKey="m" tick={{ fill: C.textSec, fontSize: 10 }} />
+              <PolarRadiusAxis tick={false} domain={[0, 100]} />
+              <Radar dataKey="v" stroke={C.primaryDark} fill={C.primary} fillOpacity={0.18} strokeWidth={2} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="card" style={{ padding: 16 }}>
+          <h3 style={{ margin: '0 0 10px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Metricas</h3>
+          <RTable columns={[
+            { label: 'Metrica', key: 'metric' },
+            { label: 'Valor', key: 'value', align: 'right', render: (v: any) => <strong>{v}</strong> },
+            { label: 'Logica', key: 'logic' },
+            { label: '', key: 'st', align: 'center' },
+          ]} data={[
+            { metric: 'Fplus', value: Number(p.final_score || 0).toFixed(2), logic: 'AVG(final_score)', st: (p.final_score || 0) >= 5 ? '\u2705' : (p.final_score || 0) >= 4.8 ? '\u26A0\uFE0F' : '\u{1F534}' },
+            { metric: 'Content', value: Number(p.content_score || 0).toFixed(1), logic: 'AVG(content_score)', st: (p.content_score || 0) >= 85 ? '\u2705' : (p.content_score || 0) >= 70 ? '\u26A0\uFE0F' : '\u{1F534}' },
+            { metric: 'SP Ratio', value: spR + '%', logic: 'spend/nmv', st: Number(spR) >= 3 ? '\u2705' : Number(spR) > 0 ? '\u26A0\uFE0F' : '\u{1F534}' },
+            { metric: 'OLT 24h', value: olt + '%', logic: '(24h_fbs+fbf)/total', st: Number(olt) >= 40 ? '\u2705' : Number(olt) >= 20 ? '\u26A0\uFE0F' : '\u{1F534}' },
+            { metric: 'Promo', value: promoR + '%', logic: '(ou+fs)/nmv', st: Number(promoR) >= 5 ? '\u2705' : Number(promoR) > 0 ? '\u26A0\uFE0F' : '\u{1F534}' },
+            { metric: '% Gen', value: genSS + '%', logic: 'GENERICO/total', st: Number(genSS) <= 3 ? '\u2705' : Number(genSS) <= 8 ? '\u26A0\uFE0F' : '\u{1F534}' },
+          ]} />
+          {sl && (
+            <div style={{ marginTop: 12, padding: 10, background: C.primaryBg, borderRadius: 8, fontSize: 12 }}>
+              <strong style={{ color: C.primaryDark }}>Cobros:</strong>{' '}
+              <Pill color={PLAN_COLORS[sl.tipo]}>{sl.tipo}</Pill>{' '}
+              Tarifa: {fmtFull(sl.tarifa)} - <Pill color={stC(sl.status)}>{sl.status}</Pill>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default function App() {
@@ -546,16 +617,16 @@ export default function App() {
 
   const [dashView, setDashView] = useState<ViewMode>('monthly');
 
-  // Collapsible table states: FULL y PREMIUM por separado
   const [expandedCatsFull, setExpandedCatsFull] = useState<Partial<Record<Categoria, boolean>>>({});
   const [expandedCatsPremium, setExpandedCatsPremium] = useState<Partial<Record<Categoria, boolean>>>({});
-/* V2: Rendimiento state */
-const [rendSub, setRendSub] = useState<'general' | 'kam' | 'seller'>('general');
-const [rendKamFilter, setRendKamFilter] = useState<string>('Todas');
-const [rendSellerPick, setRendSellerPick] = useState<any>(null);
-const [perfData, setPerfData] = useState<any[]>([]);
-const [perfWeekly, setPerfWeekly] = useState<any[]>([]);
-const [perfLoading, setPerfLoading] = useState(false);
+
+  const [rendSub, setRendSub] = useState<'general' | 'kam' | 'seller'>('general');
+  const [rendKamFilter, setRendKamFilter] = useState<string>('Todas');
+  const [rendSellerPick, setRendSellerPick] = useState<any>(null);
+  const [perfData, setPerfData] = useState<any[]>([]);
+  const [perfWeekly, setPerfWeekly] = useState<any[]>([]);
+  const [perfLoading, setPerfLoading] = useState(false);
+
   const toggleCatFull = useCallback((cat: Categoria) => {
     setExpandedCatsFull((prev) => ({ ...prev, [cat]: !prev[cat] }));
   }, []);
@@ -580,7 +651,6 @@ const [perfLoading, setPerfLoading] = useState(false);
 
   const collapseAllPremium = useCallback(() => setExpandedCatsPremium({}), []);
 
-  // ✅ FIX CRÍTICO: updateForm debe usar [key], no "value"
   const updateForm = useCallback((key: string, value: any) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
@@ -594,12 +664,11 @@ const [perfLoading, setPerfLoading] = useState(false);
     setter({ key, dir: cur.key === key && cur.dir === 'asc' ? 'desc' : 'asc' });
 
   /* ──────────────────────────────────────────────────────────────
-    REFRESH (SUPABASE REAL via ./api)
+    REFRESH
   ────────────────────────────────────────────────────────────── */
   const refreshAll = useCallback(async () => {
     const [p, s, c] = await Promise.all([fetchProspects(), fetchSellers(), fetchCupos()]);
 
-    // Si tu ./api retorna {data, error}, esto mantiene el comportamiento anterior
     if ((p as any).error) show((p as any).error.message ?? 'Error cargando prospects', false);
     if ((s as any).error) show((s as any).error.message ?? 'Error cargando sellers', false);
     if ((c as any).error) show((c as any).error.message ?? 'Error cargando cupos', false);
@@ -608,6 +677,7 @@ const [perfLoading, setPerfLoading] = useState(false);
     setSellers(((s as any).data || []).map(mapSeller));
     setCupos(((c as any).data || []).map(mapCupo));
   }, [show]);
+
   const refreshPerf = useCallback(async () => {
     setPerfLoading(true);
     const now = new Date();
@@ -626,26 +696,20 @@ const [perfLoading, setPerfLoading] = useState(false);
     }
     setPerfLoading(false);
   }, []);
+
   useEffect(() => {
     refreshAll().then(() => setReady(true));
-    refreshPerf(); // <-- AGREGAR ESTA LINEA
+    refreshPerf();
 
     const channel = supabase
       .channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sellers' }, () => {
-        refreshAll();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'prospects' }, () => {
-        refreshAll();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cupos' }, () => {
-        refreshAll();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sellers' }, () => { refreshAll(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prospects' }, () => { refreshAll(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cupos' }, () => { refreshAll(); })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-
-  }, [refreshAll,refreshPerf]);
+  }, [refreshAll, refreshPerf]);
 
   /* ──────────────────────────────────────────────────────────────
     COMPUTED
@@ -686,12 +750,7 @@ const [perfLoading, setPerfLoading] = useState(false);
           if (sCatF !== 'Todos' && s.sec !== sCatF) return false;
           if (sStatusF !== 'Todos' && s.status !== sStatusF) return false;
           if (sPlanF !== 'Todos' && s.tipo !== sPlanF) return false;
-          if (
-            sQ &&
-            !s.seller.toLowerCase().includes(sQ.toLowerCase()) &&
-            !s.sid.toLowerCase().includes(sQ.toLowerCase())
-          )
-            return false;
+          if (sQ && !s.seller.toLowerCase().includes(sQ.toLowerCase()) && !s.sid.toLowerCase().includes(sQ.toLowerCase())) return false;
           return true;
         }),
         sellSort
@@ -703,7 +762,7 @@ const [perfLoading, setPerfLoading] = useState(false);
   const revenueSellers = useMemo(
     () => sellers.filter((s) => s.status === 'Iniciado' || s.status === 'Pausa' || (s.status === 'Fuga' && s.fTermino)),
     [sellers]
-    );
+  );
   const byPlan = (arr: Seller[], plan: SellerPlan) => arr.filter((s) => s.tipo === plan);
 
   const monthlyBreakdown = useMemo<MonthlyRow[]>(
@@ -792,9 +851,7 @@ const [perfLoading, setPerfLoading] = useState(false);
 
   const histogramData = useMemo(() => {
     if (dashView === 'monthly') return monthlyBreakdown;
-    let cumFull = 0,
-      cumPrem = 0,
-      cumBasico = 0;
+    let cumFull = 0, cumPrem = 0, cumBasico = 0;
     return monthlyBreakdown.map((m) => {
       cumFull += m.Full || 0;
       cumPrem += m.Premium || 0;
@@ -803,33 +860,27 @@ const [perfLoading, setPerfLoading] = useState(false);
     });
   }, [monthlyBreakdown, dashView]);
 
-  
-
-  // ── Grouped data FULL (solo sellers Full)
   const groupedFullByCat = useMemo<GroupedByCat[]>(() => {
     return CATEGORIAS.map((cat) => {
       const catSellers = revenueSellers.filter((s) => s.sec === cat && s.tipo === 'Full');
       const monthTotals = MONTHS_SHORT.map((_, mi) => catSellers.reduce((sum, s) => sum + getMonthlyCharge(s, mi).amount, 0));
       const yearTotal = monthTotals.reduce((a, b) => a + b, 0);
-
       const planBreakdown: GroupedByCat['planBreakdown'] = {
         Full: { count: catSellers.length, sellers: catSellers },
         Premium: { count: 0, sellers: [] },
         Basico: { count: 0, sellers: [] },
       };
-
       return { cat, sellers: catSellers, monthTotals, yearTotal, planBreakdown };
     }).filter((g) => g.sellers.length > 0);
   }, [revenueSellers]);
 
-  // ── Grouped data PREMIUM (solo sellers Premium)
   const groupedPremiumByCat = useMemo<GroupedByCat[]>(() => {
     const allPremium = revenueSellers.filter((s) => s.tipo === 'Premium');
     if (allPremium.length === 0) return [];
     const monthTotals = MONTHS_SHORT.map((_, mi) => allPremium.reduce((sum, s) => sum + getMonthlyCharge(s, mi).amount, 0));
     const yearTotal = monthTotals.reduce((a, b) => a + b, 0);
     return [{
-      cat: 'Electro' as Categoria, // placeholder, no se usa visualmente
+      cat: 'Electro' as Categoria,
       sellers: allPremium,
       monthTotals,
       yearTotal,
@@ -840,131 +891,114 @@ const [perfLoading, setPerfLoading] = useState(false);
       },
     }];
   }, [revenueSellers]);
-/* V2: Enriquecer perf con data de sellers */
-const enrichedPerf = useMemo(() => {
-  return perfData.map((p: any) => {
-    const sl = sellers.find((s) => s.sid === p.sellerId);
-    return { ...p, sec: sl?.sec || '', plan: sl?.tipo || '', tarifa: sl?.tarifa || 0, sellerStatus: sl?.status || '' };
-  }).filter((p: any) => p.nmv > 0);
-}, [perfData, sellers]);
 
-const perfFiltered = useMemo(() => {
-  if (rendKamFilter === 'Todas') return enrichedPerf;
-  return enrichedPerf.filter((p: any) => p.kam === rendKamFilter);
-}, [enrichedPerf, rendKamFilter]);
+  const enrichedPerf = useMemo(() => {
+    return perfData.map((p: any) => {
+      const sl = sellers.find((s) => s.sid === p.sellerId);
+      return { ...p, sec: sl?.sec || '', plan: sl?.tipo || '', tarifa: sl?.tarifa || 0, sellerStatus: sl?.status || '' };
+    }).filter((p: any) => p.nmv > 0);
+  }, [perfData, sellers]);
 
-const perfTotals = useMemo(() => {
-  const d = perfFiltered;
-  const n = d.length || 1;
-  const tNmv = d.reduce((a: number, s: any) => a + s.nmv, 0);
-  const tNmvLY = d.reduce((a: number, s: any) => a + (s.nmv_ly || 0), 0);
-  const tSpend = d.reduce((a: number, s: any) => a + s.total_spend, 0);
-  const tP24fbs = d.reduce((a: number, s: any) => a + s.promise_24h_fbs, 0);
-  const tP24fbf = d.reduce((a: number, s: any) => a + s.promise_24h_fbf, 0);
-  const tPtot = d.reduce((a: number, s: any) => a + s.promise_total, 0);
-  const tOU = d.reduce((a: number, s: any) => a + s.ou_autogestionado, 0);
-  const tFS = d.reduce((a: number, s: any) => a + s.fs_autogestionado, 0);
-  const tBrand = d.reduce((a: number, s: any) => a + s.skus_branded, 0);
-  const tGen = d.reduce((a: number, s: any) => a + s.skus_generic, 0);
-  return {
-    nmv: tNmv, nmvLY: tNmvLY,
-    yoy: tNmvLY > 0 ? ((tNmv - tNmvLY) / tNmvLY * 100).toFixed(1) : '0',
-    avgFplus: (d.reduce((a: number, s: any) => a + (s.final_score || 0), 0) / n).toFixed(2),
-    avgContent: (d.reduce((a: number, s: any) => a + (s.content_score || 0), 0) / n).toFixed(1),
-    spRatio: tNmv > 0 ? (tSpend / tNmv * 100).toFixed(1) : '0',
-    olt24tot: tPtot > 0 ? ((tP24fbs + tP24fbf) / tPtot * 100).toFixed(1) : '0',
-    promoR: tNmv > 0 ? ((tOU + tFS) / tNmv * 100).toFixed(1) : '0',
-    genS: (tBrand + tGen) > 0 ? (tGen / (tBrand + tGen) * 100).toFixed(1) : '0',
-    n: d.length,
-  };
-}, [perfFiltered]);
+  const perfFiltered = useMemo(() => {
+    if (rendKamFilter === 'Todas') return enrichedPerf;
+    return enrichedPerf.filter((p: any) => p.kam === rendKamFilter);
+  }, [enrichedPerf, rendKamFilter]);
 
-const perfKamStats = useMemo(() => {
-  const map: Record<string, any> = {};
-  enrichedPerf.forEach((p: any) => {
-    const k = p.kam;
-    if (!map[k]) map[k] = { kam: k, sec: p.sec, n: 0, nmv: 0, nmvLY: 0, sf: 0, sc: 0, ss: 0, sp24: 0, spt: 0, sou: 0, sfs: 0, sb: 0, sg: 0 };
-    const m = map[k]; m.n++; m.nmv += p.nmv; m.nmvLY += (p.nmv_ly || 0); m.sf += (p.final_score || 0); m.sc += (p.content_score || 0); m.ss += p.total_spend;
-    m.sp24 += p.promise_24h_fbs + p.promise_24h_fbf; m.spt += p.promise_total; m.sou += p.ou_autogestionado; m.sfs += p.fs_autogestionado; m.sb += p.skus_branded; m.sg += p.skus_generic;
-  });
-  return Object.values(map).map((k: any) => ({
-    ...k, grow: k.nmvLY > 0 ? ((k.nmv - k.nmvLY) / k.nmvLY * 100).toFixed(1) : '0',
-    af: (k.sf / k.n).toFixed(2), ac: (k.sc / k.n).toFixed(1),
-    spR: k.nmv > 0 ? (k.ss / k.nmv * 100).toFixed(1) : '0',
-    olt24: k.spt > 0 ? (k.sp24 / k.spt * 100).toFixed(1) : '0',
-    promoR: k.nmv > 0 ? ((k.sou + k.sfs) / k.nmv * 100).toFixed(1) : '0',
-    genS: (k.sb + k.sg) > 0 ? (k.sg / (k.sb + k.sg) * 100).toFixed(1) : '0',
-  })).sort((a: any, b: any) => b.nmv - a.nmv);
-}, [enrichedPerf]);
+  const perfTotals = useMemo(() => {
+    const d = perfFiltered;
+    const n = d.length || 1;
+    const tNmv = d.reduce((a: number, s: any) => a + s.nmv, 0);
+    const tNmvLY = d.reduce((a: number, s: any) => a + (s.nmv_ly || 0), 0);
+    const tSpend = d.reduce((a: number, s: any) => a + s.total_spend, 0);
+    const tP24fbs = d.reduce((a: number, s: any) => a + s.promise_24h_fbs, 0);
+    const tP24fbf = d.reduce((a: number, s: any) => a + s.promise_24h_fbf, 0);
+    const tPtot = d.reduce((a: number, s: any) => a + s.promise_total, 0);
+    const tOU = d.reduce((a: number, s: any) => a + s.ou_autogestionado, 0);
+    const tFS = d.reduce((a: number, s: any) => a + s.fs_autogestionado, 0);
+    const tBrand = d.reduce((a: number, s: any) => a + s.skus_branded, 0);
+    const tGen = d.reduce((a: number, s: any) => a + s.skus_generic, 0);
+    return {
+      nmv: tNmv, nmvLY: tNmvLY,
+      yoy: tNmvLY > 0 ? ((tNmv - tNmvLY) / tNmvLY * 100).toFixed(1) : '0',
+      avgFplus: (d.reduce((a: number, s: any) => a + (s.final_score || 0), 0) / n).toFixed(2),
+      avgContent: (d.reduce((a: number, s: any) => a + (s.content_score || 0), 0) / n).toFixed(1),
+      spRatio: tNmv > 0 ? (tSpend / tNmv * 100).toFixed(1) : '0',
+      olt24tot: tPtot > 0 ? ((tP24fbs + tP24fbf) / tPtot * 100).toFixed(1) : '0',
+      promoR: tNmv > 0 ? ((tOU + tFS) / tNmv * 100).toFixed(1) : '0',
+      genS: (tBrand + tGen) > 0 ? (tGen / (tBrand + tGen) * 100).toFixed(1) : '0',
+      n: d.length,
+    };
+  }, [perfFiltered]);
 
-const perfAlerts = useMemo(() => {
-  const l: any[] = [];
-  enrichedPerf.forEach((p: any) => {
-    if (p.final_score > 0 && p.final_score < 5) l.push({ seller: p.seller_name, type: 'Fplus < 5', d: Number(p.final_score).toFixed(2), sev: p.final_score < 4.7 ? 'high' : 'med' });
-    if (p.content_score > 0 && p.content_score < 70) l.push({ seller: p.seller_name, type: 'Content bajo', d: Number(p.content_score).toFixed(1), sev: 'high' });
-    if (p.total_spend === 0 && p.nmv > 0) l.push({ seller: p.seller_name, type: 'Sin inv. SP', d: '0%', sev: 'med' });
-    if (p.promise_total > 0 && (p.promise_24h_fbs + p.promise_24h_fbf) / p.promise_total < 0.15) l.push({ seller: p.seller_name, type: 'OLT 24h bajo', d: ((p.promise_24h_fbs + p.promise_24h_fbf) / p.promise_total * 100).toFixed(1) + '%', sev: 'med' });
-    if ((p.skus_branded + p.skus_generic) > 0 && p.skus_generic / (p.skus_branded + p.skus_generic) > 0.05) l.push({ seller: p.seller_name, type: 'Alto % genericos', d: (p.skus_generic / (p.skus_branded + p.skus_generic) * 100).toFixed(1) + '%', sev: 'high' });
-  });
-  return l.sort((a, b) => (a.sev === 'high' ? 0 : 1) - (b.sev === 'high' ? 0 : 1));
-}, [enrichedPerf]);
+  const perfKamStats = useMemo(() => {
+    const map: Record<string, any> = {};
+    enrichedPerf.forEach((p: any) => {
+      const k = p.kam;
+      if (!map[k]) map[k] = { kam: k, sec: p.sec, n: 0, nmv: 0, nmvLY: 0, sf: 0, sc: 0, ss: 0, sp24: 0, spt: 0, sou: 0, sfs: 0, sb: 0, sg: 0 };
+      const m = map[k]; m.n++; m.nmv += p.nmv; m.nmvLY += (p.nmv_ly || 0); m.sf += (p.final_score || 0); m.sc += (p.content_score || 0); m.ss += p.total_spend;
+      m.sp24 += p.promise_24h_fbs + p.promise_24h_fbf; m.spt += p.promise_total; m.sou += p.ou_autogestionado; m.sfs += p.fs_autogestionado; m.sb += p.skus_branded; m.sg += p.skus_generic;
+    });
+    return Object.values(map).map((k: any) => ({
+      ...k, grow: k.nmvLY > 0 ? ((k.nmv - k.nmvLY) / k.nmvLY * 100).toFixed(1) : '0',
+      af: (k.sf / k.n).toFixed(2), ac: (k.sc / k.n).toFixed(1),
+      spR: k.nmv > 0 ? (k.ss / k.nmv * 100).toFixed(1) : '0',
+      olt24: k.spt > 0 ? (k.sp24 / k.spt * 100).toFixed(1) : '0',
+      promoR: k.nmv > 0 ? ((k.sou + k.sfs) / k.nmv * 100).toFixed(1) : '0',
+      genS: (k.sb + k.sg) > 0 ? (k.sg / (k.sb + k.sg) * 100).toFixed(1) : '0',
+    })).sort((a: any, b: any) => b.nmv - a.nmv);
+  }, [enrichedPerf]);
 
-const weeklyChart = useMemo(() => {
-  return perfWeekly.map((w: any) => ({
-    week: String(w.week_start || '').slice(5, 10),
-    fplus: w.avg_fplus ? +Number(w.avg_fplus).toFixed(2) : 0,
-    content: w.avg_content ? +Number(w.avg_content).toFixed(1) : 0,
-    spInv: w.total_spend ? +(w.total_spend / 1e6).toFixed(1) : 0,
-    spRatio: w.total_nmv_for_ratio > 0 ? +(w.total_spend / w.total_nmv_for_ratio * 100).toFixed(1) : 0,
-    olt24fbf: w.promise_total_fbf > 0 ? +(w.promise_24h_fbf / w.promise_total_fbf * 100).toFixed(1) : 0,
-    olt24fbs: w.promise_total_fbs > 0 ? +(w.promise_24h_fbs / w.promise_total_fbs * 100).toFixed(1) : 0,
-    promoOU: w.ou_autogestionado ? +(w.ou_autogestionado / 1e6).toFixed(1) : 0,
-    promoFS: w.fs_autogestionado ? +(w.fs_autogestionado / 1e6).toFixed(1) : 0,
-    promoR: w.nmv > 0 ? +((w.ou_autogestionado + w.fs_autogestionado) / w.nmv * 100).toFixed(1) : 0,
-    skusGeneric: w.skus_generic || 0,
-    genShare: (w.skus_branded + w.skus_generic) > 0 ? +(w.skus_generic / (w.skus_branded + w.skus_generic) * 100).toFixed(1) : 0,
-  })).slice(-12);
-}, [perfWeekly]);
+  const perfAlerts = useMemo(() => {
+    const l: any[] = [];
+    enrichedPerf.forEach((p: any) => {
+      if (p.final_score > 0 && p.final_score < 5) l.push({ seller: p.seller_name, type: 'Fplus < 5', d: Number(p.final_score).toFixed(2), sev: p.final_score < 4.7 ? 'high' : 'med' });
+      if (p.content_score > 0 && p.content_score < 70) l.push({ seller: p.seller_name, type: 'Content bajo', d: Number(p.content_score).toFixed(1), sev: 'high' });
+      if (p.total_spend === 0 && p.nmv > 0) l.push({ seller: p.seller_name, type: 'Sin inv. SP', d: '0%', sev: 'med' });
+      if (p.promise_total > 0 && (p.promise_24h_fbs + p.promise_24h_fbf) / p.promise_total < 0.15) l.push({ seller: p.seller_name, type: 'OLT 24h bajo', d: ((p.promise_24h_fbs + p.promise_24h_fbf) / p.promise_total * 100).toFixed(1) + '%', sev: 'med' });
+      if ((p.skus_branded + p.skus_generic) > 0 && p.skus_generic / (p.skus_branded + p.skus_generic) > 0.05) l.push({ seller: p.seller_name, type: 'Alto % genericos', d: (p.skus_generic / (p.skus_branded + p.skus_generic) * 100).toFixed(1) + '%', sev: 'high' });
+    });
+    return l.sort((a, b) => (a.sev === 'high' ? 0 : 1) - (b.sev === 'high' ? 0 : 1));
+  }, [enrichedPerf]);
 
+  const weeklyChart = useMemo(() => {
+    return perfWeekly.map((w: any) => ({
+      week: String(w.week_start || '').slice(5, 10),
+      fplus: w.avg_fplus ? +Number(w.avg_fplus).toFixed(2) : 0,
+      content: w.avg_content ? +Number(w.avg_content).toFixed(1) : 0,
+      spInv: w.total_spend ? +(w.total_spend / 1e6).toFixed(1) : 0,
+      spRatio: w.total_nmv_for_ratio > 0 ? +(w.total_spend / w.total_nmv_for_ratio * 100).toFixed(1) : 0,
+      olt24fbf: w.promise_total_fbf > 0 ? +(w.promise_24h_fbf / w.promise_total_fbf * 100).toFixed(1) : 0,
+      olt24fbs: w.promise_total_fbs > 0 ? +(w.promise_24h_fbs / w.promise_total_fbs * 100).toFixed(1) : 0,
+      promoOU: w.ou_autogestionado ? +(w.ou_autogestionado / 1e6).toFixed(1) : 0,
+      promoFS: w.fs_autogestionado ? +(w.fs_autogestionado / 1e6).toFixed(1) : 0,
+      promoR: w.nmv > 0 ? +((w.ou_autogestionado + w.fs_autogestionado) / w.nmv * 100).toFixed(1) : 0,
+      skusGeneric: w.skus_generic || 0,
+      genShare: (w.skus_branded + w.skus_generic) > 0 ? +(w.skus_generic / (w.skus_branded + w.skus_generic) * 100).toFixed(1) : 0,
+    })).slice(-12);
+  }, [perfWeekly]);
 
   /* ──────────────────────────────────────────────────────────────
-    ACTIONS (SUPABASE via ./api + refreshAll)
+    ACTIONS
   ────────────────────────────────────────────────────────────── */
   const saveProspect = (isNew: boolean) => {
     if (!form.id || !form.s || !form.c) {
       show('Completa ID, Seller y Categoria', false);
       return;
     }
-
     upsertProspect({
-      id: form.id,
-      seller: form.s,
-      status: isNew ? 'Prospectos' : (form.st || 'Prospectos'),
-      tipo: form.t || 'Cartera',
-      categoria: form.c,
-      nombre: form.n || '',
-      mail: form.m || '',
-      tel: form.tel || '',
-      note: form.note || '',
+      id: form.id, seller: form.s, status: isNew ? 'Prospectos' : (form.st || 'Prospectos'),
+      tipo: form.t || 'Cartera', categoria: form.c, nombre: form.n || '',
+      mail: form.m || '', tel: form.tel || '', note: form.note || '',
     }).then((res: any) => {
-      if (res.error) {
-        show(res.error.message, false);
-        return;
-      }
-      refreshAll().then(() => {
-        show(isNew ? 'Prospecto agregado' : 'Prospecto actualizado');
-        setModal(null);
-      });
+      if (res.error) { show(res.error.message, false); return; }
+      refreshAll().then(() => { show(isNew ? 'Prospecto agregado' : 'Prospecto actualizado'); setModal(null); });
     });
   };
 
   const deleteProspect = (p: Prospect) => {
     if (!window.confirm('Eliminar ' + p.s + '?')) return;
     deleteProspectDB(p.id).then((res: any) => {
-      if (res.error) {
-        show(res.error.message, false);
-        return;
-      }
+      if (res.error) { show(res.error.message, false); return; }
       refreshAll().then(() => show(p.s + ' eliminado'));
     });
   };
@@ -972,20 +1006,13 @@ const weeklyChart = useMemo(() => {
   const advance = (p: Prospect, ns: ProspectStage) => {
     if (ns === 'Cerrados') {
       const cp = cuposCalc.find((c) => c.g === p.c);
-      if (cp && cp.d <= 0) {
-        show('Sin cupos en ' + p.c, false);
-        return;
-      }
+      if (cp && cp.d <= 0) { show('Sin cupos en ' + p.c, false); return; }
       setForm({ plan: 'Full', tarifa: 990000, dcto: 2, min: 6, sec: p.c });
       setModal({ type: 'close', data: p });
       return;
     }
-
     updateProspectStatus(p.id, ns).then((res: any) => {
-      if (res.error) {
-        show(res.error.message, false);
-        return;
-      }
+      if (res.error) { show(res.error.message, false); return; }
       refreshAll().then(() => show(p.s + ' -> ' + ns));
     });
   };
@@ -994,165 +1021,75 @@ const weeklyChart = useMemo(() => {
     if (!window.confirm(p.s + ': Volver a Interesados?')) return;
     const existing = sellers.find((s) => s.sid === p.id);
     const delP = existing ? deleteSellerDB(existing.sid) : Promise.resolve({ error: null });
-
-    delP
-      .then((res: any) => {
-        if (res.error) {
-          show(res.error.message, false);
-          return { error: res.error };
-        }
-        return updateProspectStatus(p.id, 'Interesados');
-      })
-      .then((res: any) => {
-        if (res && res.error) {
-          show(res.error.message, false);
-          return;
-        }
-        refreshAll().then(() => show(p.s + ' revertido'));
-      });
+    delP.then((res: any) => {
+      if (res.error) { show(res.error.message, false); return { error: res.error }; }
+      return updateProspectStatus(p.id, 'Interesados');
+    }).then((res: any) => {
+      if (res && res.error) { show(res.error.message, false); return; }
+      refreshAll().then(() => show(p.s + ' revertido'));
+    });
   };
 
   const handleClosedClick = (p: Prospect) => {
     const existing = sellers.find((s) => s.sid === p.id);
-    if (existing) {
-      setTab('sellers');
-      setSelS(existing);
-      show(p.s + ' ya esta en Cobros');
-      return;
-    }
-    setForm({
-      plan: 'Full',
-      tarifa: 990000,
-      dcto: 2,
-      min: 6,
-      sec: p.c,
-      sid: p.id,
-      seller: p.s,
-      cont: p.n,
-      mail: p.m,
-      kam: KAM_POR_CATEGORIA[p.c] || '-',
-    });
+    if (existing) { setTab('sellers'); setSelS(existing); show(p.s + ' ya esta en Cobros'); return; }
+    setForm({ plan: 'Full', tarifa: 990000, dcto: 2, min: 6, sec: p.c, sid: p.id, seller: p.s, cont: p.n, mail: p.m, kam: KAM_POR_CATEGORIA[p.c] || '-' });
     setModal({ type: 'close', data: p });
   };
 
   const confirmClose = () => {
-    if (!modal || modal.type !== 'close') {
-      show('Error', false);
-      return;
-    }
+    if (!modal || modal.type !== 'close') { show('Error', false); return; }
     const p = modal.data;
-
     const doSeller = () => {
       const cp2 = cuposCalc.find((c) => c.g === p.c);
-      const cupoP =
-        cp2 && cp2.d > 0 && p.st !== 'Cerrados'
-          ? upsertCupo({ gerencia: cp2.g, encargado: cp2.e, usados: cp2.u + 1, disponibles: Math.max(0, cp2.d - 1) })
-          : Promise.resolve({ error: null });
-
-      cupoP
-        .then(() =>
-          upsertSeller({
-            sid: form.sid || p.id,
-            seller: form.seller || p.s,
-            seccion: form.sec || p.c,
-            kam: form.kam || KAM_POR_CATEGORIA[p.c] || '-',
-            contacto: form.cont || p.n || '',
-            mail: form.mail || p.m || '',
-            status: 'Iniciado',
-            tipo: form.plan || 'Full',
-            tarifa: Number(form.tarifa) || 990000,
-            f_contrato: new Date().toISOString().slice(0, 10),
-            f_termino: null,
-            dcto: Number(form.dcto) || 2,
-            min_meses: Number(form.min) || 6,
-            custom_dctos: {},
-          })
-        )
-        .then((res: any) => {
-          if (res.error) {
-            show(res.error.message, false);
-            return;
-          }
-          refreshAll().then(() => {
-            show(p.s + ' cerrado y en Cobros');
-            setModal(null);
-          });
-        });
+      const cupoP = cp2 && cp2.d > 0 && p.st !== 'Cerrados'
+        ? upsertCupo({ gerencia: cp2.g, encargado: cp2.e, usados: cp2.u + 1, disponibles: Math.max(0, cp2.d - 1) })
+        : Promise.resolve({ error: null });
+      cupoP.then(() => upsertSeller({
+        sid: form.sid || p.id, seller: form.seller || p.s, seccion: form.sec || p.c,
+        kam: form.kam || KAM_POR_CATEGORIA[p.c] || '-', contacto: form.cont || p.n || '',
+        mail: form.mail || p.m || '', status: 'Iniciado', tipo: form.plan || 'Full',
+        tarifa: Number(form.tarifa) || 990000, f_contrato: new Date().toISOString().slice(0, 10),
+        f_termino: null, dcto: Number(form.dcto) || 2, min_meses: Number(form.min) || 6, custom_dctos: {},
+      })).then((res: any) => {
+        if (res.error) { show(res.error.message, false); return; }
+        refreshAll().then(() => { show(p.s + ' cerrado y en Cobros'); setModal(null); });
+      });
     };
-
     if (p.st !== 'Cerrados') {
       updateProspectStatus(p.id, 'Cerrados').then((res: any) => {
-        if (res.error) {
-          show(res.error.message, false);
-          return;
-        }
+        if (res.error) { show(res.error.message, false); return; }
         doSeller();
       });
-    } else {
-      doSeller();
-    }
+    } else { doSeller(); }
   };
 
   const saveSeller = () => {
-    if (!form.seller || !form.sid) {
-      show('Completa Seller y Seller ID', false);
-      return;
-    }
-
+    if (!form.seller || !form.sid) { show('Completa Seller y Seller ID', false); return; }
     upsertSeller({
-      sid: form.sid,
-      seller: form.seller,
-      seccion: form.sec,
-      kam: form.kam || '-',
-      contacto: form.cont || '',
-      mail: form.mail || '',
-      status: form.status || 'Iniciado',
-      tipo: form.tipo || 'Full',
-      tarifa: Number(form.tarifa) || 990000,
-      f_contrato: form.fContrato || null,
-      f_termino: form.fTermino || null,
-      dcto: Number(form.dcto) || 0,
-      min_meses: Number(form.min) || 6,
-      custom_dctos: form.customDctos || {},
+      sid: form.sid, seller: form.seller, seccion: form.sec, kam: form.kam || '-',
+      contacto: form.cont || '', mail: form.mail || '', status: form.status || 'Iniciado',
+      tipo: form.tipo || 'Full', tarifa: Number(form.tarifa) || 990000,
+      f_contrato: form.fContrato || null, f_termino: form.fTermino || null,
+      dcto: Number(form.dcto) || 0, min_meses: Number(form.min) || 6, custom_dctos: form.customDctos || {},
     }).then((res: any) => {
-      if (res.error) {
-        show(res.error.message, false);
-        return;
-      }
-      refreshAll().then(() => {
-        show(form._isNew ? 'Seller agregado' : 'Seller actualizado');
-        setModal(null);
-      });
+      if (res.error) { show(res.error.message, false); return; }
+      refreshAll().then(() => { show(form._isNew ? 'Seller agregado' : 'Seller actualizado'); setModal(null); });
     });
   };
 
   const deleteSeller = (s: Seller) => {
     if (!window.confirm('Eliminar ' + s.seller + '?')) return;
     deleteSellerDB(s.sid).then((res: any) => {
-      if (res.error) {
-        show(res.error.message, false);
-        return;
-      }
+      if (res.error) { show(res.error.message, false); return; }
       refreshAll().then(() => show(s.seller + ' eliminado'));
     });
   };
 
   const saveCupos = () => {
     Promise.all(
-      cuposCalc.map((c, i) =>
-        upsertCupo({
-          gerencia: c.g,
-          encargado: c.e,
-          usados: Number(form['u' + i] ?? c.u),
-          disponibles: Number(form['d' + i] ?? c.d),
-        })
-      )
-    ).then(() =>
-      refreshAll().then(() => {
-        show('Cupos actualizados');
-        setModal(null);
-      })
-    );
+      cuposCalc.map((c, i) => upsertCupo({ gerencia: c.g, encargado: c.e, usados: Number(form['u' + i] ?? c.u), disponibles: Number(form['d' + i] ?? c.d) }))
+    ).then(() => refreshAll().then(() => { show('Cupos actualizados'); setModal(null); }));
   };
 
   const saveMonthCharge = () => {
@@ -1160,83 +1097,34 @@ const weeklyChart = useMemo(() => {
     const s = modal.data.seller;
     const mk = mkKey(modal.data.year, modal.data.monthIdx);
     const newD = { ...(s.customDctos || {}) };
-
     if (form.removeCustom) {
       delete newD[mk];
     } else {
       const amt = Number(form.customAmount);
-      if (Number.isNaN(amt) || amt < 0) {
-        show('Monto invalido', false);
-        return;
-      }
+      if (Number.isNaN(amt) || amt < 0) { show('Monto invalido', false); return; }
       newD[mk] = amt;
     }
-
     upsertSeller({
-      sid: s.sid,
-      seller: s.seller,
-      seccion: s.sec,
-      kam: s.kam,
-      contacto: s.cont,
-      mail: s.mail,
-      status: s.status,
-      tipo: s.tipo,
-      tarifa: s.tarifa,
-      f_contrato: s.fContrato || null,
-      f_termino: s.fTermino || null,
-      dcto: s.dcto,
-      min_meses: s.min,
-      custom_dctos: newD,
+      sid: s.sid, seller: s.seller, seccion: s.sec, kam: s.kam, contacto: s.cont,
+      mail: s.mail, status: s.status, tipo: s.tipo, tarifa: s.tarifa,
+      f_contrato: s.fContrato || null, f_termino: s.fTermino || null,
+      dcto: s.dcto, min_meses: s.min, custom_dctos: newD,
     }).then((res: any) => {
-      if (res.error) {
-        show(res.error.message, false);
-        return;
-      }
-      refreshAll().then(() => {
-        show('Cobro actualizado');
-        setModal(null);
-      });
+      if (res.error) { show(res.error.message, false); return; }
+      refreshAll().then(() => { show('Cobro actualizado'); setModal(null); });
     });
   };
 
   const rf = (label: string, k: string, opts?: { type?: string; options?: readonly string[] | string[]; w?: string }) => (
-    <FormField
-      label={label}
-      value={String(form[k] ?? '')}
-      onChange={(v) => updateForm(k, v)}
-      type={opts?.type}
-      opts={opts?.options}
-      w={opts?.w}
-    />
+    <FormField label={label} value={String(form[k] ?? '')} onChange={(v) => updateForm(k, v)} type={opts?.type} opts={opts?.options} w={opts?.w} />
   );
-  console.log('Premium sellers in revenueSellers:', revenueSellers.filter(s => s.tipo === 'Premium'));
-  console.log('groupedPremiumByCat:', groupedPremiumByCat);
-  console.log('Premium sellers detail:', revenueSellers.filter(s => s.tipo === 'Premium').map(s => ({ seller: s.seller, sec: s.sec })));
+
   if (!ready) {
     return (
-      <div
-        style={{
-          background: C.bg,
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontFamily: "'DM Sans', system-ui, sans-serif",
-        }}
-      >
+      <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
         <div style={{ textAlign: 'center', color: C.primary }}>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              border: '3px solid ' + C.primaryLight,
-              borderTop: '3px solid ' + C.primary,
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto 12px',
-            }}
-          />
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Cargando…</span>
+          <div style={{ width: 40, height: 40, border: '3px solid ' + C.primaryLight, borderTop: '3px solid ' + C.primary, borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+          <span style={{ fontSize: 14, fontWeight: 600 }}>Cargando...</span>
         </div>
       </div>
     );
@@ -1253,63 +1141,19 @@ const weeklyChart = useMemo(() => {
       <style>{CSS_STYLES}</style>
 
       {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 20,
-            right: 20,
-            padding: '12px 22px',
-            borderRadius: 12,
-            fontSize: 13,
-            fontWeight: 600,
-            zIndex: 200,
-            animation: 'si .2s ease-out',
-            boxShadow: '0 4px 16px rgba(0,0,0,.1)',
-            background: toast.ok ? C.primaryLight : C.dangerLight,
-            color: toast.ok ? C.primaryDark : C.danger,
-            border: '1px solid ' + (toast.ok ? C.primary : C.danger),
-          }}
-        >
+        <div style={{ position: 'fixed', top: 20, right: 20, padding: '12px 22px', borderRadius: 12, fontSize: 13, fontWeight: 600, zIndex: 200, animation: 'si .2s ease-out', boxShadow: '0 4px 16px rgba(0,0,0,.1)', background: toast.ok ? C.primaryLight : C.dangerLight, color: toast.ok ? C.primaryDark : C.danger, border: '1px solid ' + (toast.ok ? C.primary : C.danger) }}>
           {toast.msg}
         </div>
       )}
 
       {/* MODALS */}
       {modal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,.4)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: 20,
-          }}
-          onClick={() => setModal(null)}
-        >
-          <div
-            className="si"
-            style={{
-              background: C.bgCard,
-              border: '1px solid ' + C.border,
-              borderRadius: 18,
-              padding: 28,
-              maxWidth: 580,
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 20px 60px rgba(0,0,0,.12)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }} onClick={() => setModal(null)}>
+          <div className="si" style={{ background: C.bgCard, border: '1px solid ' + C.border, borderRadius: 18, padding: 28, maxWidth: 580, width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.12)' }} onClick={(e) => e.stopPropagation()}>
+
             {(modal.type === 'addProspect' || modal.type === 'editProspect') && (
               <>
-                <h3 style={{ margin: '0 0 18px', color: C.primary, fontSize: 17, fontWeight: 700 }}>
-                  {modal.type === 'addProspect' ? 'Agregar Prospecto' : 'Editar Prospecto'}
-                </h3>
+                <h3 style={{ margin: '0 0 18px', color: C.primary, fontSize: 17, fontWeight: 700 }}>{modal.type === 'addProspect' ? 'Agregar Prospecto' : 'Editar Prospecto'}</h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
                   {rf('Seller ID', 'id', { w: '1 1 140px' })}
                   {rf('Nombre Seller', 's')}
@@ -1321,24 +1165,16 @@ const weeklyChart = useMemo(() => {
                   {rf('Nota', 'note')}
                 </div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                  <button className="btn btn-ghost" onClick={() => setModal(null)}>
-                    Cancelar
-                  </button>
-                  <button className="btn btn-primary" onClick={() => saveProspect(modal.type === 'addProspect')}>
-                    {modal.type === 'addProspect' ? 'Agregar' : 'Guardar'}
-                  </button>
+                  <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancelar</button>
+                  <button className="btn btn-primary" onClick={() => saveProspect(modal.type === 'addProspect')}>{modal.type === 'addProspect' ? 'Agregar' : 'Guardar'}</button>
                 </div>
               </>
             )}
 
             {modal.type === 'close' && (
               <>
-                <h3 style={{ margin: '0 0 10px', color: C.primary, fontSize: 17, fontWeight: 700 }}>
-                  Cerrar y Mover a Cobros
-                </h3>
-                <p style={{ color: C.textSec, fontSize: 13, margin: '0 0 16px' }}>
-                  <strong style={{ color: C.text }}>{modal.data.s}</strong> pasa a Cobros SE.
-                </p>
+                <h3 style={{ margin: '0 0 10px', color: C.primary, fontSize: 17, fontWeight: 700 }}>Cerrar y Mover a Cobros</h3>
+                <p style={{ color: C.textSec, fontSize: 13, margin: '0 0 16px' }}><strong style={{ color: C.text }}>{modal.data.s}</strong> pasa a Cobros SE.</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
                   {rf('Seller ID', 'sid', { w: '1 1 120px' })}
                   {rf('Seller', 'seller')}
@@ -1352,21 +1188,15 @@ const weeklyChart = useMemo(() => {
                   {rf('Min Meses', 'min', { type: 'number', w: '1 1 100px' })}
                 </div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                  <button className="btn btn-ghost" onClick={() => setModal(null)}>
-                    Cancelar
-                  </button>
-                  <button className="btn btn-primary" onClick={confirmClose}>
-                    Confirmar
-                  </button>
+                  <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancelar</button>
+                  <button className="btn btn-primary" onClick={confirmClose}>Confirmar</button>
                 </div>
               </>
             )}
 
             {(modal.type === 'addSeller' || modal.type === 'editSeller') && (
               <>
-                <h3 style={{ margin: '0 0 18px', color: C.primary, fontSize: 17, fontWeight: 700 }}>
-                  {modal.type === 'addSeller' ? 'Agregar Seller' : 'Editar Seller'}
-                </h3>
+                <h3 style={{ margin: '0 0 18px', color: C.primary, fontSize: 17, fontWeight: 700 }}>{modal.type === 'addSeller' ? 'Agregar Seller' : 'Editar Seller'}</h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
                   {rf('Seller', 'seller')}
                   {rf('Seller ID', 'sid', { w: '1 1 120px' })}
@@ -1383,192 +1213,95 @@ const weeklyChart = useMemo(() => {
                   {rf('Min Meses', 'min', { type: 'number', w: '1 1 80px' })}
                 </div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                  <button className="btn btn-ghost" onClick={() => setModal(null)}>
-                    Cancelar
-                  </button>
-                  <button className="btn btn-primary" onClick={saveSeller}>
-                    {modal.type === 'addSeller' ? 'Agregar' : 'Guardar'}
-                  </button>
+                  <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancelar</button>
+                  <button className="btn btn-primary" onClick={saveSeller}>{modal.type === 'addSeller' ? 'Agregar' : 'Guardar'}</button>
                 </div>
               </>
             )}
 
             {modal.type === 'editCupos' && (
               <>
-                <h3 style={{ margin: '0 0 18px', color: C.primary, fontSize: 17, fontWeight: 700 }}>
-                  {'Editar Cupos (max ' + MAX_CUPOS + ')'}
-                </h3>
+                <h3 style={{ margin: '0 0 18px', color: C.primary, fontSize: 17, fontWeight: 700 }}>{'Editar Cupos (max ' + MAX_CUPOS + ')'}</h3>
                 {cuposCalc.map((c, i) => (
                   <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
                     <span style={{ minWidth: 130, fontSize: 13, fontWeight: 600 }}>{c.g}</span>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: 10, color: C.textMuted }}>Usados</label>
-                      <input
-                        type="number"
-                        value={form['u' + i] ?? c.u}
-                        onChange={(e) => updateForm('u' + i, e.target.value)}
-                        style={{ width: '100%' }}
-                      />
+                      <input type="number" value={form['u' + i] ?? c.u} onChange={(e) => updateForm('u' + i, e.target.value)} style={{ width: '100%' }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: 10, color: C.textMuted }}>Disponibles</label>
-                      <input
-                        type="number"
-                        value={form['d' + i] ?? c.d}
-                        onChange={(e) => updateForm('d' + i, e.target.value)}
-                        style={{ width: '100%' }}
-                      />
+                      <input type="number" value={form['d' + i] ?? c.d} onChange={(e) => updateForm('d' + i, e.target.value)} style={{ width: '100%' }} />
                     </div>
                   </div>
                 ))}
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
-                  <button className="btn btn-ghost" onClick={() => setModal(null)}>
-                    Cancelar
-                  </button>
-                  <button className="btn btn-primary" onClick={saveCupos}>
-                    Guardar
-                  </button>
+                  <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancelar</button>
+                  <button className="btn btn-primary" onClick={saveCupos}>Guardar</button>
                 </div>
               </>
             )}
 
-            {modal.type === 'editMonthCharge' &&
-              (() => {
-                const s = modal.data.seller;
-                const mi = modal.data.monthIdx;
-                const ch = getMonthlyCharge(s, mi, modal.data.year);
-                const mk = mkKey(modal.data.year, mi);
-                const hasC = s.customDctos && s.customDctos[mk] != null;
-
-                return (
-                  <>
-                    <h3 style={{ margin: '0 0 14px', color: C.primary, fontSize: 17, fontWeight: 700 }}>
-                      {'Editar Cobro - ' + MONTHS_SHORT[mi] + ' ' + modal.data.year}
-                    </h3>
-
-                    <div style={{ fontSize: 13, color: C.textSec, marginBottom: 16 }}>
-                      <strong>{s.seller}</strong> {' (' + s.sid + ')'}
-                      <div style={{ marginTop: 4 }}>{'Tarifa base: ' + fmtFull(s.tarifa)}</div>
-                      <div>
-                        {'Cobro actual: ' +
-                          fmtFull(ch.amount) +
-                          (ch.isDiscount ? ' (dcto)' : '') +
-                          (ch.isProrated ? ' (prorrata)' : '') +
-                          (ch.isCustom ? ' (custom)' : '')}
-                      </div>
-                    </div>
-
-                    <div style={{ flex: '1 1 200px', marginBottom: 16 }}>
-                      <label
-                        style={{
-                          fontSize: 11,
-                          color: C.textMuted,
-                          display: 'block',
-                          marginBottom: 4,
-                          fontWeight: 600,
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        Monto a cobrar
+            {modal.type === 'editMonthCharge' && (() => {
+              const s = modal.data.seller;
+              const mi = modal.data.monthIdx;
+              const ch = getMonthlyCharge(s, mi, modal.data.year);
+              const mk = mkKey(modal.data.year, mi);
+              const hasC = s.customDctos && s.customDctos[mk] != null;
+              return (
+                <>
+                  <h3 style={{ margin: '0 0 14px', color: C.primary, fontSize: 17, fontWeight: 700 }}>{'Editar Cobro - ' + MONTHS_SHORT[mi] + ' ' + modal.data.year}</h3>
+                  <div style={{ fontSize: 13, color: C.textSec, marginBottom: 16 }}>
+                    <strong>{s.seller}</strong>{' (' + s.sid + ')'}
+                    <div style={{ marginTop: 4 }}>{'Tarifa base: ' + fmtFull(s.tarifa)}</div>
+                    <div>{'Cobro actual: ' + fmtFull(ch.amount) + (ch.isDiscount ? ' (dcto)' : '') + (ch.isProrated ? ' (prorrata)' : '') + (ch.isCustom ? ' (custom)' : '')}</div>
+                  </div>
+                  <div style={{ flex: '1 1 200px', marginBottom: 16 }}>
+                    <label style={{ fontSize: 11, color: C.textMuted, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase' }}>Monto a cobrar</label>
+                    <input type="number" value={form.customAmount || ''} onChange={(e) => { updateForm('customAmount', e.target.value); updateForm('removeCustom', false); }} style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, fontSize: 13 }} placeholder={String(s.tarifa)} />
+                  </div>
+                  {hasC && (
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.textSec, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={!!form.removeCustom} onChange={(e) => updateForm('removeCustom', e.target.checked)} />
+                        Eliminar cobro personalizado
                       </label>
-                      <input
-                        type="number"
-                        value={form.customAmount || ''}
-                        onChange={(e) => {
-                          updateForm('customAmount', e.target.value);
-                          updateForm('removeCustom', false);
-                        }}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, fontSize: 13 }}
-                        placeholder={String(s.tarifa)}
-                      />
                     </div>
-
-                    {hasC && (
-                      <div style={{ marginBottom: 16 }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.textSec, cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            checked={!!form.removeCustom}
-                            onChange={(e) => updateForm('removeCustom', e.target.checked)}
-                          />
-                          Eliminar cobro personalizado
-                        </label>
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                      <button className="btn btn-ghost" onClick={() => setModal(null)}>
-                        Cancelar
-                      </button>
-                      <button className="btn btn-primary" onClick={saveMonthCharge}>
-                        Guardar
-                      </button>
-                    </div>
-                  </>
-                );
-              })()}
+                  )}
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                    <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancelar</button>
+                    <button className="btn btn-primary" onClick={saveMonthCharge}>Guardar</button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
 
       <div style={{ maxWidth: 1360, margin: '0 auto', padding: '16px 20px' }}>
         {/* HEADER */}
-        <div
-          className="header-wrap"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 16,
-            flexWrap: 'wrap',
-            gap: 12,
-            background: C.bgCard,
-            padding: '12px 20px',
-            borderRadius: 14,
-            border: '1px solid ' + C.borderLight,
-            boxShadow: '0 1px 4px rgba(0,0,0,.03)',
-          }}
-        >
+        <div className="header-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12, background: C.bgCard, padding: '12px 20px', borderRadius: 14, border: '1px solid ' + C.borderLight, boxShadow: '0 1px 4px rgba(0,0,0,.03)' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.primary, letterSpacing: '-0.5px' }}>
-              SELLERS ELITE
-            </h1>
-            <p style={{ margin: '1px 0 0', fontSize: 11, color: C.textMuted }}>
-              Hunting + Cobros - Falabella Marketplace
-            </p>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.primary, letterSpacing: '-0.5px' }}>SELLERS ELITE</h1>
+            <p style={{ margin: '1px 0 0', fontSize: 11, color: C.textMuted }}>Hunting + Cobros - Falabella Marketplace</p>
           </div>
-
           <div style={{ display: 'flex', gap: 2, background: C.bgAlt, padding: 3, borderRadius: 10 }}>
-          {([
+            {([
               ['inicio', 'Inicio'],
               ['hunting', 'Hunting'],
               ['sellers', 'Cobros'],
               ['dashboard', 'Dashboard'],
               ['rendimiento', 'Rendimiento'],
             ] as [Tab, string][]).map((item) => (
-
-              <button
-                key={item[0]}
-                onClick={() => setTab(item[0])}
-                style={{
-                  padding: '7px 16px',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  border: 'none',
-                  fontFamily: 'inherit',
-                  transition: 'all .2s',
-                  background: tab === item[0] ? C.primary : 'transparent',
-                  color: tab === item[0] ? '#fff' : C.textSec,
-                  boxShadow: tab === item[0] ? '0 2px 8px rgba(22,163,74,.2)' : 'none',
-                }}
-              >
+              <button key={item[0]} onClick={() => setTab(item[0])} style={{ padding: '7px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, border: 'none', fontFamily: 'inherit', transition: 'all .2s', background: tab === item[0] ? C.primary : 'transparent', color: tab === item[0] ? '#fff' : C.textSec, boxShadow: tab === item[0] ? '0 2px 8px rgba(22,163,74,.2)' : 'none' }}>
                 {item[1]}
               </button>
             ))}
           </div>
         </div>
+
+        {/* ═══ INICIO ═══ */}
         {tab === 'inicio' && (
           <div className="fi" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -1627,7 +1360,8 @@ const weeklyChart = useMemo(() => {
                   <BarChart data={funnel} layout="vertical">
                     <XAxis type="number" tick={{ fill: C.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="name" tick={{ fill: C.textSec, fontSize: 11 }} axisLine={false} tickLine={false} width={100} />
-                    <Tooltip contentStyle={ttS} /><Bar dataKey="count" radius={[0, 6, 6, 0]}>{funnel.map((e, i) => <Cell key={i} fill={e.fill} fillOpacity={0.85} />)}</Bar>
+                    <Tooltip contentStyle={ttS} />
+                    <Bar dataKey="count" radius={[0, 6, 6, 0]}>{funnel.map((e, i) => <Cell key={i} fill={e.fill} fillOpacity={0.85} />)}</Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1640,9 +1374,11 @@ const weeklyChart = useMemo(() => {
                     <Tooltip contentStyle={ttS} formatter={(v: any) => fmtFull(Number(v))} />
                     {PLAN_TYPES.map((plan) => {
                       const isTop = plan === PLAN_TYPES[PLAN_TYPES.length - 1];
-                      return (<Bar key={plan} dataKey={plan} stackId="a" radius={isTop ? [4, 4, 0, 0] : undefined}>
-                        {histogramData.map((entry: any, idx: number) => (<Cell key={idx} fill={StackedBarCell(plan, entry.idx > CURRENT_MONTH)} />))}
-                      </Bar>);
+                      return (
+                        <Bar key={plan} dataKey={plan} stackId="a" radius={isTop ? [4, 4, 0, 0] : undefined}>
+                          {histogramData.map((entry: any, idx: number) => (<Cell key={idx} fill={StackedBarCell(plan, entry.idx > CURRENT_MONTH)} />))}
+                        </Bar>
+                      );
                     })}
                   </BarChart>
                 </ResponsiveContainer>
@@ -1650,7 +1386,6 @@ const weeklyChart = useMemo(() => {
             </div>
           </div>
         )}
-
 
         {/* ═══ HUNTING ═══ */}
         {tab === 'hunting' && (
@@ -1666,19 +1401,8 @@ const weeklyChart = useMemo(() => {
             <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div className="card" style={{ padding: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>
-                    Cupos por Categoria
-                  </h3>
-                  <span
-                    className="action-icon"
-                    style={{ fontSize: 12 }}
-                    onClick={() => {
-                      setForm({});
-                      setModal({ type: 'editCupos' });
-                    }}
-                  >
-                    editar
-                  </span>
+                  <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Cupos por Categoria</h3>
+                  <span className="action-icon" style={{ fontSize: 12 }} onClick={() => { setForm({}); setModal({ type: 'editCupos' }); }}>editar</span>
                 </div>
                 {cuposCalc.map((c, i) => {
                   const tot = c.u + c.d;
@@ -1686,23 +1410,11 @@ const weeklyChart = useMemo(() => {
                   return (
                     <div key={i} style={{ marginBottom: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                        <span style={{ fontWeight: 600 }}>
-                          {c.g} <span style={{ color: C.textMuted, fontWeight: 400 }}>{'(' + c.e + ')'}</span>
-                        </span>
-                        <span style={{ color: c.d === 0 ? C.primary : C.danger, fontWeight: 700, fontSize: 11 }}>
-                          {c.u + '/' + tot + ' (' + c.d + ' disp)'}
-                        </span>
+                        <span style={{ fontWeight: 600 }}>{c.g} <span style={{ color: C.textMuted, fontWeight: 400 }}>{'(' + c.e + ')'}</span></span>
+                        <span style={{ color: c.d === 0 ? C.primary : C.danger, fontWeight: 700, fontSize: 11 }}>{c.u + '/' + tot + ' (' + c.d + ' disp)'}</span>
                       </div>
                       <div style={{ height: 6, background: C.bgDark, borderRadius: 3, overflow: 'hidden' }}>
-                        <div
-                          style={{
-                            height: '100%',
-                            borderRadius: 3,
-                            transition: 'width .5s',
-                            width: pct + '%',
-                            background: c.d === 0 ? C.primary : pct > 80 ? C.warning : C.danger,
-                          }}
-                        />
+                        <div style={{ height: '100%', borderRadius: 3, transition: 'width .5s', width: pct + '%', background: c.d === 0 ? C.primary : pct > 80 ? C.warning : C.danger }} />
                       </div>
                     </div>
                   );
@@ -1710,83 +1422,33 @@ const weeklyChart = useMemo(() => {
               </div>
 
               <div className="card" style={{ padding: 18 }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>
-                  Funnel
-                </h3>
+                <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Funnel</h3>
                 <ResponsiveContainer width="100%" height={210}>
                   <BarChart data={funnel} layout="vertical">
                     <XAxis type="number" tick={{ fill: C.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      tick={{ fill: C.textSec, fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={100}
-                    />
+                    <YAxis type="category" dataKey="name" tick={{ fill: C.textSec, fontSize: 11 }} axisLine={false} tickLine={false} width={100} />
                     <Tooltip contentStyle={{ background: C.bgCard, border: '1px solid ' + C.border, borderRadius: 10, fontSize: 12 }} />
-                    <Bar dataKey="count" radius={[0, 6, 6, 0]}>
-                      {funnel.map((e, i) => (
-                        <Cell key={i} fill={e.fill} fillOpacity={0.85} />
-                      ))}
-                    </Bar>
+                    <Bar dataKey="count" radius={[0, 6, 6, 0]}>{funnel.map((e, i) => (<Cell key={i} fill={e.fill} fillOpacity={0.85} />))}</Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
             <div className="card" style={{ overflow: 'hidden' }}>
-            <div
-                className="filter-bar"
-                style={{
-                  padding: '10px 14px',
-                  display: 'flex',
-                  gap: 10,
-                  flexWrap: 'wrap',
-                  borderBottom: '1px solid ' + C.border,
-                  alignItems: 'center',
-                  background: C.bgAlt,
-                }}
-              >
+              <div className="filter-bar" style={{ padding: '10px 14px', display: 'flex', gap: 10, flexWrap: 'wrap', borderBottom: '1px solid ' + C.border, alignItems: 'center', background: C.bgAlt }}>
                 <input placeholder="Buscar seller..." value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: '1 1 160px' }} />
                 <select value={fCat} onChange={(e) => setFCat(e.target.value as any)}>
                   <option>Todos</option>
-                  {CATEGORIAS.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
+                  {CATEGORIAS.map((c) => (<option key={c}>{c}</option>))}
                 </select>
                 <select value={fSt} onChange={(e) => setFSt(e.target.value as any)}>
                   <option>Todos</option>
-                  {STAGES.map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
+                  {STAGES.map((s) => (<option key={s}>{s}</option>))}
                 </select>
-                <button
-                  className="btn btn-primary btn-sm"
-                  style={{ padding: '7px 14px', fontSize: 12 }}
-                  onClick={() => {
-                    setForm({ c: CATEGORIAS[0], t: 'Cartera' });
-                    setModal({ type: 'addProspect' });
-                  }}
-                >
-                  + Agregar
-                </button>
+                <button className="btn btn-primary btn-sm" style={{ padding: '7px 14px', fontSize: 12 }} onClick={() => { setForm({ c: CATEGORIAS[0], t: 'Cartera' }); setModal({ type: 'addProspect' }); }}>+ Agregar</button>
               </div>
 
-              <div
-                className="hunt-head"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '2fr 1fr 1fr 1.2fr 1.5fr .4fr',
-                  padding: '8px 14px',
-                  background: C.bgAlt,
-                  fontSize: 10,
-                  color: C.textMuted,
-                  textTransform: 'uppercase',
-                  fontWeight: 700,
-                  borderBottom: '2px solid ' + C.border,
-                }}
-              >
+              <div className="hunt-head" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.2fr 1.5fr .4fr', padding: '8px 14px', background: C.bgAlt, fontSize: 10, color: C.textMuted, textTransform: 'uppercase', fontWeight: 700, borderBottom: '2px solid ' + C.border }}>
                 <SortHeader label="Seller" sortKey="s" current={huntSort} onSort={(k) => toggleSort(setHuntSort, huntSort, k)} />
                 <SortHeader label="Categoria" sortKey="c" current={huntSort} onSort={(k) => toggleSort(setHuntSort, huntSort, k)} />
                 <SortHeader label="Status" sortKey="st" current={huntSort} onSort={(k) => toggleSort(setHuntSort, huntSort, k)} />
@@ -1803,120 +1465,49 @@ const weeklyChart = useMemo(() => {
                   const canNI = p.st === 'Contactados' || p.st === 'Interesados';
                   const cp = cuposCalc.find((c) => c.g === p.c);
                   const cupoOk = !!cp && cp.d > 0;
-
                   return (
-                    <div
-                      key={p.id}
-                      className="row-hover hunt-row"
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '2fr 1fr 1fr 1.2fr 1.5fr .4fr',
-                        padding: '10px 14px',
-                        borderBottom: '1px solid ' + C.borderLight,
-                        alignItems: 'center',
-                      }}
-                    >
+                    <div key={p.id} className="row-hover hunt-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.2fr 1.5fr .4fr', padding: '10px 14px', borderBottom: '1px solid ' + C.borderLight, alignItems: 'center' }}>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{p.s}</div>
                         <div style={{ fontSize: 11, color: C.textMuted }}>{p.id}{p.note ? ' - ' + p.note : ''}</div>
                       </div>
-
                       <div>
                         <div style={{ fontSize: 12 }}>{p.c}</div>
                         <div style={{ fontSize: 10, color: C.textMuted }}>{p.t}</div>
                       </div>
-
-                      <div>
-                        <Pill color={SC[p.st]}>{p.st}</Pill>
-                      </div>
+                      <div><Pill color={SC[p.st]}>{p.st}</Pill></div>
                       <div style={{ fontSize: 11, color: C.textSec }}>{p.n || p.m || '-'}</div>
-
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {nextA && (
-                          <button
-                            className="btn btn-sm"
-                            style={{ background: C.tertiaryBg, color: C.tertiary, border: '1px solid ' + C.tertiaryLight }}
-                            onClick={() => advance(p, nextA)}
-                          >
+                          <button className="btn btn-sm" style={{ background: C.tertiaryBg, color: C.tertiary, border: '1px solid ' + C.tertiaryLight }} onClick={() => advance(p, nextA)}>
                             {nextA === 'Contactados' ? 'Contactar' : 'Interesado'}
                           </button>
                         )}
-
                         {canCl && (
-                          <button
-                            className="btn btn-sm"
-                            style={{
-                              background: cupoOk ? C.primaryLight : C.secondaryLight,
-                              color: cupoOk ? C.primaryDark : C.textMuted,
-                              border: '1px solid ' + (cupoOk ? C.primary : C.border),
-                              cursor: cupoOk ? 'pointer' : 'not-allowed',
-                            }}
-                            onClick={() => {
-                              if (cupoOk) advance(p, 'Cerrados');
-                            }}
-                          >
+                          <button className="btn btn-sm" style={{ background: cupoOk ? C.primaryLight : C.secondaryLight, color: cupoOk ? C.primaryDark : C.textMuted, border: '1px solid ' + (cupoOk ? C.primary : C.border), cursor: cupoOk ? 'pointer' : 'not-allowed' }} onClick={() => { if (cupoOk) advance(p, 'Cerrados'); }}>
                             {cupoOk ? 'Cerrar' : 'Cerrar (0)'}
                           </button>
                         )}
-
                         {canNI && (
-                          <button
-                            className="btn btn-sm"
-                            style={{ background: C.dangerLight, color: C.danger, border: '1px solid #fecaca' }}
-                            onClick={() => advance(p, 'No Interesado')}
-                          >
-                            No Int.
-                          </button>
+                          <button className="btn btn-sm" style={{ background: C.dangerLight, color: C.danger, border: '1px solid #fecaca' }} onClick={() => advance(p, 'No Interesado')}>No Int.</button>
                         )}
-
                         {p.st === 'No Interesado' && (
-                          <button
-                            className="btn btn-sm"
-                            style={{ background: C.secondaryLight, color: C.textSec, border: '1px solid ' + C.border }}
-                            onClick={() => advance(p, 'Prospectos')}
-                          >
-                            Reactivar
-                          </button>
+                          <button className="btn btn-sm" style={{ background: C.secondaryLight, color: C.textSec, border: '1px solid ' + C.border }} onClick={() => advance(p, 'Prospectos')}>Reactivar</button>
                         )}
-
                         {p.st === 'Cerrados' && (
                           <>
-                            <button
-                              className="btn btn-sm"
-                              style={{ background: C.primaryLight, color: C.primaryDark, border: '1px solid ' + C.primary }}
-                              onClick={() => handleClosedClick(p)}
-                            >
-                              Cobros
-                            </button>
-                            <button
-                              className="btn btn-sm"
-                              style={{ background: C.warningLight, color: '#92400E', border: '1px solid ' + C.warning }}
-                              onClick={() => reverseCerrado(p)}
-                            >
-                              Revertir
-                            </button>
+                            <button className="btn btn-sm" style={{ background: C.primaryLight, color: C.primaryDark, border: '1px solid ' + C.primary }} onClick={() => handleClosedClick(p)}>Cobros</button>
+                            <button className="btn btn-sm" style={{ background: C.warningLight, color: '#92400E', border: '1px solid ' + C.warning }} onClick={() => reverseCerrado(p)}>Revertir</button>
                           </>
                         )}
                       </div>
-
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <span
-                          className="action-icon"
-                          onClick={() => {
-                            setForm({ ...p, _origId: p.id });
-                            setModal({ type: 'editProspect' });
-                          }}
-                        >
-                          E
-                        </span>
-                        <span className="action-icon del-icon" onClick={() => deleteProspect(p)}>
-                          X
-                        </span>
+                        <span className="action-icon" onClick={() => { setForm({ ...p, _origId: p.id }); setModal({ type: 'editProspect' }); }}>E</span>
+                        <span className="action-icon del-icon" onClick={() => deleteProspect(p)}>X</span>
                       </div>
                     </div>
                   );
                 })}
-
                 {filt.length === 0 && <div style={{ padding: 28, textAlign: 'center', color: C.textMuted, fontSize: 13 }}>No hay prospectos</div>}
               </div>
             </div>
@@ -1928,9 +1519,7 @@ const weeklyChart = useMemo(() => {
           <div className="fi" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flex: 1 }}>
               <KpiCard label="Total Sellers" value={kpi.tot} color={C.tertiary} />
-              {PLAN_TYPES.map((p) => (
-                <KpiCard key={p} label={p + ' Activos'} value={kpi.planCounts[p] || 0} color={planC(p)} />
-              ))}
+              {PLAN_TYPES.map((p) => (<KpiCard key={p} label={p + ' Activos'} value={kpi.planCounts[p] || 0} color={planC(p)} />))}
               <KpiCard label="En Pausa" value={kpi.pausa} color={C.warning} />
               <KpiCard label="Fugas" value={kpi.fug} color={C.danger} />
               <KpiCard label="Revenue YTD" value={fmt(kpi.ytdRev)} color={C.primary} />
@@ -1938,52 +1527,24 @@ const weeklyChart = useMemo(() => {
             </div>
 
             <div className="card" style={{ overflow: 'hidden' }}>
-            <div className="filter-bar" style={{ padding: '10px 14px', display: 'flex', gap: 10, flexWrap: 'wrap', borderBottom: '1px solid ' + C.border, alignItems: 'center', background: C.bgAlt }}>
+              <div className="filter-bar" style={{ padding: '10px 14px', display: 'flex', gap: 10, flexWrap: 'wrap', borderBottom: '1px solid ' + C.border, alignItems: 'center', background: C.bgAlt }}>
                 <input placeholder="Buscar..." value={sQ} onChange={(e) => setSQ(e.target.value)} style={{ flex: '1 1 140px' }} />
                 <select value={sCatF} onChange={(e) => setSCatF(e.target.value as any)}>
                   <option>Todos</option>
-                  {CATEGORIAS.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
+                  {CATEGORIAS.map((c) => (<option key={c}>{c}</option>))}
                 </select>
                 <select value={sStatusF} onChange={(e) => setSStatusF(e.target.value as any)}>
                   <option>Todos</option>
-                  {(['Iniciado', 'Pausa', 'Fuga'] as SellerStatus[]).map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
+                  {(['Iniciado', 'Pausa', 'Fuga'] as SellerStatus[]).map((s) => (<option key={s}>{s}</option>))}
                 </select>
                 <select value={sPlanF} onChange={(e) => setSPlanF(e.target.value as any)}>
                   <option>Todos</option>
-                  {PLAN_TYPES.map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
+                  {PLAN_TYPES.map((s) => (<option key={s}>{s}</option>))}
                 </select>
-                <button
-                  className="btn btn-primary btn-sm"
-                  style={{ padding: '7px 14px', fontSize: 12 }}
-                  onClick={() => {
-                    setForm({ sec: CATEGORIAS[0], status: 'Iniciado', tipo: 'Full', tarifa: 990000, min: 6, dcto: 2, _isNew: true, customDctos: {} });
-                    setModal({ type: 'addSeller' });
-                  }}
-                >
-                  + Agregar
-                </button>
+                <button className="btn btn-primary btn-sm" style={{ padding: '7px 14px', fontSize: 12 }} onClick={() => { setForm({ sec: CATEGORIAS[0], status: 'Iniciado', tipo: 'Full', tarifa: 990000, min: 6, dcto: 2, _isNew: true, customDctos: {} }); setModal({ type: 'addSeller' }); }}>+ Agregar</button>
               </div>
 
-              <div
-                className="sell-head"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '2fr 1.2fr .8fr .8fr .7fr .7fr .7fr .4fr',
-                  padding: '8px 14px',
-                  background: C.bgAlt,
-                  fontSize: 10,
-                  color: C.textMuted,
-                  textTransform: 'uppercase',
-                  fontWeight: 700,
-                  borderBottom: '2px solid ' + C.border,
-                }}
-              >
+              <div className="sell-head" style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr .8fr .8fr .7fr .7fr .7fr .4fr', padding: '8px 14px', background: C.bgAlt, fontSize: 10, color: C.textMuted, textTransform: 'uppercase', fontWeight: 700, borderBottom: '2px solid ' + C.border }}>
                 <SortHeader label="Seller" sortKey="seller" current={sellSort} onSort={(k) => toggleSort(setSellSort, sellSort, k)} />
                 <SortHeader label="Seccion" sortKey="sec" current={sellSort} onSort={(k) => toggleSort(setSellSort, sellSort, k)} />
                 <SortHeader label="Status" sortKey="status" current={sellSort} onSort={(k) => toggleSort(setSellSort, sellSort, k)} />
@@ -1996,49 +1557,20 @@ const weeklyChart = useMemo(() => {
 
               <div style={{ maxHeight: 500, overflowY: 'auto' }}>
                 {filteredSellers.map((s) => (
-                  <div
-                  key={s.sid}
-                  className="row-hover sell-row"
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '2fr 1.2fr .8fr .8fr .7fr .7fr .7fr .4fr',
-                      padding: '10px 14px',
-                      borderBottom: '1px solid ' + C.borderLight,
-                      cursor: 'pointer',
-                      alignItems: 'center',
-                      background: selS?.sid === s.sid ? C.primaryLight : undefined,
-                    }}
-                    onClick={() => setSelS(selS?.sid === s.sid ? null : s)}
-                  >
+                  <div key={s.sid} className="row-hover sell-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr .8fr .8fr .7fr .7fr .7fr .4fr', padding: '10px 14px', borderBottom: '1px solid ' + C.borderLight, cursor: 'pointer', alignItems: 'center', background: selS?.sid === s.sid ? C.primaryLight : undefined }} onClick={() => setSelS(selS?.sid === s.sid ? null : s)}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{s.seller}</div>
                       <div style={{ fontSize: 11, color: C.textMuted }}>{s.sid + ' - ' + s.cont}</div>
                     </div>
-
                     <div style={{ fontSize: 12, color: C.textSec }}>{s.sec}</div>
-                    <div>
-                      <Pill color={stC(s.status)}>{s.status}</Pill>
-                    </div>
-                    <div style={{ fontSize: 12 }}>
-                      <Pill color={planC(s.tipo)}>{s.tipo}</Pill>
-                    </div>
+                    <div><Pill color={stC(s.status)}>{s.status}</Pill></div>
+                    <div style={{ fontSize: 12 }}><Pill color={planC(s.tipo)}>{s.tipo}</Pill></div>
                     <div style={{ fontSize: 12, color: C.primary, fontWeight: 700 }}>{fmt(s.tarifa)}</div>
                     <div style={{ fontSize: 12, color: s.dcto > 0 ? C.purple : C.textMuted }}>{s.dcto > 0 ? s.dcto + 'm' : '-'}</div>
                     <div style={{ fontSize: 12 }}>{s.min + 'm'}</div>
-
                     <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                      <span
-                        className="action-icon"
-                        onClick={() => {
-                          setForm({ ...s, _origSid: s.sid });
-                          setModal({ type: 'editSeller' });
-                        }}
-                      >
-                        E
-                      </span>
-                      <span className="action-icon del-icon" onClick={() => deleteSeller(s)}>
-                        X
-                      </span>
+                      <span className="action-icon" onClick={() => { setForm({ ...s, _origSid: s.sid }); setModal({ type: 'editSeller' }); }}>E</span>
+                      <span className="action-icon del-icon" onClick={() => deleteSeller(s)}>X</span>
                     </div>
                   </div>
                 ))}
@@ -2048,16 +1580,7 @@ const weeklyChart = useMemo(() => {
             {selS && (
               <div className="card fi" style={{ padding: 18 }}>
                 <h3 style={{ margin: '0 0 6px', color: C.primary, fontSize: 16, fontWeight: 700 }}>{selS.seller}</h3>
-                <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>
-                  {selS.sid +
-                    ' - ' +
-                    selS.cont +
-                    ' - ' +
-                    selS.mail +
-                    ' - ' +
-                    (selS.fContrato || 'N/A') +
-                    (selS.fTermino ? ' Termino: ' + selS.fTermino : '')}
-                </div>
+                <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>{selS.sid + ' - ' + selS.cont + ' - ' + selS.mail + ' - ' + (selS.fContrato || 'N/A') + (selS.fTermino ? ' Termino: ' + selS.fTermino : '')}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 8, fontSize: 12 }}>
                   {[
                     { l: 'Seccion', v: selS.sec },
@@ -2068,9 +1591,7 @@ const weeklyChart = useMemo(() => {
                     { l: 'Min', v: selS.min + 'm' },
                     { l: 'Status', v: selS.status, c: stC(selS.status) },
                   ].map((it, i2) => (
-                    <div key={i2}>
-                      <span style={{ color: C.textMuted }}>{it.l}:</span> <span style={{ color: it.c || C.text, fontWeight: 600 }}>{it.v}</span>
-                    </div>
+                    <div key={i2}><span style={{ color: C.textMuted }}>{it.l}:</span> <span style={{ color: it.c || C.text, fontWeight: 600 }}>{it.v}</span></div>
                   ))}
                 </div>
               </div>
@@ -2084,85 +1605,66 @@ const weeklyChart = useMemo(() => {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flex: 1 }}>
               <KpiCard label="Revenue YTD" value={fmt(kpi.ytdRev)} color={C.primary} />
               <KpiCard label={'Revenue Proyectado ' + CURRENT_YEAR} value={fmt(kpi.projectedRev)} color={C.primaryDark} />
-              <KpiCard
-                label="Sellers Activos"
-                value={kpi.act}
-                color={C.tertiary}
-                sub={
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    {PLAN_TYPES.map((p) => (
-                      <span key={p} style={{ fontSize: 11, color: planC(p), fontWeight: 700 }}>
-                        {(kpi.planCounts[p] || 0) + ' ' + p}
-                      </span>
-                    ))}
-                  </div>
-                }
-              />
+              <KpiCard label="Sellers Activos" value={kpi.act} color={C.tertiary} sub={<div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>{PLAN_TYPES.map((p) => (<span key={p} style={{ fontSize: 11, color: planC(p), fontWeight: 700 }}>{(kpi.planCounts[p] || 0) + ' ' + p}</span>))}</div>} />
               <KpiCard label="Pipeline" value={kpi.pipe} color={C.purple} />
             </div>
 
-            {/* STACKED HISTOGRAM */}
             <div className="card" style={{ padding: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>
-                  {dashView === 'monthly' ? 'Ingresos Mensuales por Servicio' : 'Ingresos Acumulados YTD por Servicio'}
-                </h3>
+                <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>{dashView === 'monthly' ? 'Ingresos Mensuales por Servicio' : 'Ingresos Acumulados YTD por Servicio'}</h3>
                 <ViewToggle mode={dashView} onChange={setDashView} />
               </div>
-
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={histogramData}>
                   <XAxis dataKey="name" tick={{ fill: C.textSec, fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: C.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: any) => fmt(Number(v))} />
-                  <Tooltip
-                    contentStyle={{ background: C.bgCard, border: '1px solid ' + C.border, borderRadius: 10, fontSize: 12 }}
-                    formatter={(v: any, name: any) => [fmtFull(Number(v)), String(name ?? '')]}
-                  />
+                  <Tooltip contentStyle={{ background: C.bgCard, border: '1px solid ' + C.border, borderRadius: 10, fontSize: 12 }} formatter={(v: any, name: any) => [fmtFull(Number(v)), String(name ?? '')]} />
                   {PLAN_TYPES.map((plan) => {
-  const isFirst = plan === 'Full';
-  const isTop = plan === PLAN_TYPES[PLAN_TYPES.length - 1];
-  return (
-    <Bar key={plan} dataKey={plan} stackId="a" radius={isTop ? [4, 4, 0, 0] : undefined}>
-                        {histogramData.map((entry: any, idx: number) => (
-                          <Cell key={idx} fill={StackedBarCell(plan, entry.idx > CURRENT_MONTH)} />
-                        ))}
+                    const isFirst = plan === 'Full';
+                    const isTop = plan === PLAN_TYPES[PLAN_TYPES.length - 1];
+                    return (
+                      <Bar key={plan} dataKey={plan} stackId="a" radius={isTop ? [4, 4, 0, 0] : undefined}>
+                        {histogramData.map((entry: any, idx: number) => (<Cell key={idx} fill={StackedBarCell(plan, entry.idx > CURRENT_MONTH)} />))}
                         {isFirst && (
-                          <LabelList position="top" content={(props: any) => { const { x, y, width, height, index } = props; const d = histogramData[index]; if (!d || !d.total || !d.Full) return null; var pxPerUnit = height / d.Full; var offset = ((d.Premium || 0) + (d.Basico || 0)) * pxPerUnit; return (<text x={x + width / 2} y={y - offset - 6} textAnchor="middle" fontSize={9} fontWeight={700} fill="#5A6473">{fmt(d.total)}</text>); }} />
+                          <LabelList position="top" content={(props: any) => {
+                            const { x, y, width, height, index } = props;
+                            const d = histogramData[index];
+                            if (!d || !d.total || !d.Full) return null;
+                            var pxPerUnit = height / d.Full;
+                            var offset = ((d.Premium || 0) + (d.Basico || 0)) * pxPerUnit;
+                            return (<text x={x + width / 2} y={y - offset - 6} textAnchor="middle" fontSize={9} fontWeight={700} fill="#5A6473">{fmt(d.total)}</text>);
+                          }} />
                         )}
                       </Bar>
-  );  
-})}
+                    );
+                  })}
                 </BarChart>
               </ResponsiveContainer>
-
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginTop: 8 }}>
-  <div style={{ display: 'flex', gap: 16 }}>
-    {PLAN_TYPES.map((p) => (
-      <div key={p} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: PLAN_COLORS[p] }} />
-        <span>{p}</span>
-      </div>
-    ))}
-  </div>
-  <div style={{ display: 'flex', gap: 16 }}>
-    <div style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: C.primary }} />
-      <span style={{ color: C.textSec }}>Real</span>
-    </div>
-    <div style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: PLAN_COLORS_LIGHT.Full, border: '1px dashed ' + C.textMuted }} />
-      <span style={{ color: C.textSec }}>Proyectado</span>
-    </div>
-  </div>
-</div>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  {PLAN_TYPES.map((p) => (
+                    <div key={p} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: PLAN_COLORS[p] }} />
+                      <span>{p}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <div style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: C.primary }} />
+                    <span style={{ color: C.textSec }}>Real</span>
+                  </div>
+                  <div style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: PLAN_COLORS_LIGHT.Full, border: '1px dashed ' + C.textMuted }} />
+                    <span style={{ color: C.textSec }}>Proyectado</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Cards */}
             <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-            <div className="card" style={{ padding: 18 }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>
-                  Ingresos por Categoria
-                </h3>
+              <div className="card" style={{ padding: 18 }}>
+                <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Ingresos por Categoria</h3>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={revByCategory}>
                     <XAxis dataKey="name" tick={{ fill: C.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
@@ -2172,49 +1674,23 @@ const weeklyChart = useMemo(() => {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-
               <div className="card" style={{ padding: 18 }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>
-                  Ingresos por Plan
-                </h3>
+                <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Ingresos por Plan</h3>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
-                    <Pie
-                      data={planRevDist}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={65}
-                      dataKey="value"
-                      label={false}
-                    >
-                      {planRevDist.map((d, i) => (
-                        <Cell key={i} fill={d.fill} />
-                      ))}
+                    <Pie data={planRevDist} cx="50%" cy="50%" innerRadius={40} outerRadius={65} dataKey="value" label={false}>
+                      {planRevDist.map((d, i) => (<Cell key={i} fill={d.fill} />))}
                     </Pie>
                     <Tooltip contentStyle={{ background: C.bgCard, border: '1px solid ' + C.border, borderRadius: 10, fontSize: 12 }} formatter={(v: any) => fmtFull(Number(v))} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-
               <div className="card" style={{ padding: 18 }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>
-                  Status Sellers
-                </h3>
+                <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Status Sellers</h3>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
-                    <Pie
-                      data={statusDist}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={65}
-                      dataKey="value"
-                      label={false}
-                    >
-                      {statusDist.map((d, i) => (
-                        <Cell key={i} fill={d.fill} />
-                      ))}
+                    <Pie data={statusDist} cx="50%" cy="50%" innerRadius={40} outerRadius={65} dataKey="value" label={false}>
+                      {statusDist.map((d, i) => (<Cell key={i} fill={d.fill} />))}
                     </Pie>
                     <Tooltip contentStyle={{ background: C.bgCard, border: '1px solid ' + C.border, borderRadius: 10, fontSize: 12 }} />
                   </PieChart>
@@ -2222,462 +1698,192 @@ const weeklyChart = useMemo(() => {
               </div>
             </div>
 
-            {/* Resumen */}
             <div className="card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid ' + C.border, background: C.bgAlt }}>
-                <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>
-                  {'Resumen Ingresos ' + CURRENT_YEAR}
-                </h3>
+                <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>{'Resumen Ingresos ' + CURRENT_YEAR}</h3>
               </div>
-
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 900 }}>
                   <thead>
                     <tr style={{ background: C.bgAlt, borderBottom: '2px solid ' + C.border }}>
                       <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: C.textMuted }}>Plan</th>
-                      {MONTHS_SHORT.map((m) => (
-                        <th key={m} style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700, fontSize: 10, color: C.textMuted }}>
-                          {m}
-                        </th>
-                      ))}
-                      <th style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, fontSize: 10, color: C.textMuted, background: C.primaryBg }}>
-                        Total
-                      </th>
+                      {MONTHS_SHORT.map((m) => (<th key={m} style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700, fontSize: 10, color: C.textMuted }}>{m}</th>))}
+                      <th style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, fontSize: 10, color: C.textMuted, background: C.primaryBg }}>Total</th>
                     </tr>
                   </thead>
-
                   <tbody>
                     {PLAN_TYPES.map((plan) => {
                       const pc = PLAN_COLORS[plan];
                       return (
                         <tr key={plan} style={{ borderBottom: '1px solid ' + C.borderLight }}>
                           <td style={{ padding: '8px 14px', fontWeight: 600, color: pc }}>{plan}</td>
-                          {monthlyBreakdown.map((m, i) => (
-                            <td key={i} style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 500 }}>
-                              {(m[plan] || 0) > 0 ? fmt(m[plan]) : '-'}
-                            </td>
-                          ))}
-                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, color: pc, background: C.primaryBg }}>
-                            {fmt(monthlyBreakdown.reduce((s, m) => s + (m[plan] || 0), 0))}
-                          </td>
+                          {monthlyBreakdown.map((m, i) => (<td key={i} style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 500 }}>{(m[plan] || 0) > 0 ? fmt(m[plan]) : '-'}</td>))}
+                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, color: pc, background: C.primaryBg }}>{fmt(monthlyBreakdown.reduce((s, m) => s + (m[plan] || 0), 0))}</td>
                         </tr>
                       );
                     })}
-
                     <tr style={{ background: C.primaryBg, borderTop: '2px solid ' + C.primary }}>
                       <td style={{ padding: '8px 14px', fontWeight: 800, color: C.primaryDark }}>TOTAL</td>
-                      {monthlyBreakdown.map((m, i) => (
-                        <td key={i} style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700, color: C.primaryDark }}>
-                          {m.total > 0 ? fmt(m.total) : '-'}
-                        </td>
-                      ))}
-                      <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 800, color: C.primaryDark, fontSize: 13 }}>
-                        {fmtFull(projectedRev)}
-                      </td>
+                      {monthlyBreakdown.map((m, i) => (<td key={i} style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700, color: C.primaryDark }}>{m.total > 0 ? fmt(m.total) : '-'}</td>))}
+                      <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 800, color: C.primaryDark, fontSize: 13 }}>{fmtFull(projectedRev)}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* DETALLE DE COBROS - FULL */}
+            {/* DETALLE FULL */}
             <div className="card" style={{ overflow: 'hidden' }}>
-              <div
-                style={{
-                  padding: '12px 16px',
-                  borderBottom: '1px solid ' + C.border,
-                  background: C.bgAlt,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>
-                  Detalle de Cobros - Full
-                </h3>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid ' + C.border, background: C.bgAlt, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Detalle de Cobros - Full</h3>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-sm btn-ghost" onClick={expandAllFull}>
-                    Expandir Full
-                  </button>
-                  <button className="btn btn-sm btn-ghost" onClick={collapseAllFull}>
-                    Contraer Full
-                  </button>
+                  <button className="btn btn-sm btn-ghost" onClick={expandAllFull}>Expandir Full</button>
+                  <button className="btn btn-sm btn-ghost" onClick={collapseAllFull}>Contraer Full</button>
                 </div>
               </div>
-
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 1200 }}>
                   <thead>
                     <tr style={{ background: C.bgAlt, borderBottom: '2px solid ' + C.border }}>
-                      {['Seller', 'ID', 'KAM', 'Plan', 'Tarifa', 'Dcto', 'Min'].map((h) => (
-                        <th
-                          key={h}
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'left',
-                            fontWeight: 700,
-                            fontSize: 10,
-                            color: C.textMuted,
-                            textTransform: 'uppercase',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                      {MONTHS_SHORT.map((m, mi) => (
-                        <th
-                          key={m}
-                          style={{
-                            padding: '8px 6px',
-                            textAlign: 'right',
-                            fontWeight: 700,
-                            fontSize: 10,
-                            color: C.textMuted,
-                            whiteSpace: 'nowrap',
-                            background: mi === CURRENT_MONTH ? C.primaryBg : undefined,
-                          }}
-                        >
-                          {m}
-                        </th>
-                      ))}
-                      <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontSize: 10, color: C.textMuted, background: C.primaryBg }}>
-                        Total
-                      </th>
+                      {['Seller', 'ID', 'KAM', 'Plan', 'Tarifa', 'Dcto', 'Min'].map((h) => (<th key={h} style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: C.textMuted, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>))}
+                      {MONTHS_SHORT.map((m, mi) => (<th key={m} style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700, fontSize: 10, color: C.textMuted, whiteSpace: 'nowrap', background: mi === CURRENT_MONTH ? C.primaryBg : undefined }}>{m}</th>))}
+                      <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontSize: 10, color: C.textMuted, background: C.primaryBg }}>Total</th>
                     </tr>
                   </thead>
                   <tbody>
                     {groupedFullByCat.flatMap((group) => {
                       const isExpanded = !!expandedCatsFull[group.cat];
-                      const catColor = C.primary;
                       const rows: ReactNode[] = [];
-
                       rows.push(
-                        <tr
-                          key={'cat-full-' + group.cat}
-                          style={{ background: C.bgAlt, cursor: 'pointer', borderBottom: '1px solid ' + C.border }}
-                          onClick={() => toggleCatFull(group.cat)}
-                        >
+                        <tr key={'cat-full-' + group.cat} style={{ background: C.bgAlt, cursor: 'pointer', borderBottom: '1px solid ' + C.border }} onClick={() => toggleCatFull(group.cat)}>
                           <td colSpan={7} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, color: C.text }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                              <span
-                                style={{
-                                  display: 'inline-block',
-                                  width: 16,
-                                  textAlign: 'center',
-                                  fontSize: 10,
-                                  color: C.textMuted,
-                                  transition: 'transform .2s',
-                                  transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                                }}
-                              >
-                                ▶
-                              </span>
+                              <span style={{ display: 'inline-block', width: 16, textAlign: 'center', fontSize: 10, color: C.textMuted, transition: 'transform .2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
                               {group.cat}
                               <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 500 }}>{'(' + group.sellers.length + ' Full)'}</span>
                             </span>
                           </td>
-                          {group.monthTotals.map((mt, mi) => (
-                            <td
-                              key={mi}
-                              style={{
-                                padding: '8px 6px',
-                                textAlign: 'right',
-                                fontWeight: 700,
-                                fontSize: 11,
-                                color: catColor,
-                                background: mi === CURRENT_MONTH ? C.primaryBg : undefined,
-                              }}
-                            >
-                              {mt > 0 ? fmt(mt) : '-'}
-                            </td>
-                          ))}
-                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: catColor, background: C.primaryBg, fontSize: 11 }}>
-                            {fmt(group.yearTotal)}
-                          </td>
+                          {group.monthTotals.map((mt, mi) => (<td key={mi} style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700, fontSize: 11, color: C.primary, background: mi === CURRENT_MONTH ? C.primaryBg : undefined }}>{mt > 0 ? fmt(mt) : '-'}</td>))}
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: C.primary, background: C.primaryBg, fontSize: 11 }}>{fmt(group.yearTotal)}</td>
                         </tr>
                       );
-
                       if (isExpanded) {
-                        const ps = group.planBreakdown.Full.sellers;
-                        const pc = PLAN_COLORS.Full;
-
-                        ps.forEach((s) => {
+                        group.planBreakdown.Full.sellers.forEach((s) => {
                           let yt = 0;
                           rows.push(
                             <tr key={'full-' + s.sid} className="row-hover" style={{ borderBottom: '1px solid ' + C.borderLight }}>
                               <td style={{ padding: '7px 8px 7px 28px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                                 {s.seller}
-                                {s.status === 'Fuga' && (
-  <span style={{ marginLeft: 4, fontSize: 9, color: C.danger, fontWeight: 700 }}>FUGA</span>
-)}
-{s.status === 'Pausa' && (
-  <span style={{ marginLeft: 4, fontSize: 9, color: C.warning, fontWeight: 700 }}>PAUSA</span>
-)}
+                                {s.status === 'Fuga' && <span style={{ marginLeft: 4, fontSize: 9, color: C.danger, fontWeight: 700 }}>FUGA</span>}
+                                {s.status === 'Pausa' && <span style={{ marginLeft: 4, fontSize: 9, color: C.warning, fontWeight: 700 }}>PAUSA</span>}
                               </td>
                               <td style={{ padding: '7px 8px', color: C.textMuted, fontSize: 10 }}>{s.sid}</td>
                               <td style={{ padding: '7px 8px', color: C.textSec, fontSize: 10 }}>{s.kam}</td>
-                              <td style={{ padding: '7px 8px' }}>
-                                <Pill color={pc}>Full</Pill>
-                              </td>
+                              <td style={{ padding: '7px 8px' }}><Pill color={PLAN_COLORS.Full}>Full</Pill></td>
                               <td style={{ padding: '7px 8px', fontWeight: 600 }}>{fmt(s.tarifa)}</td>
                               <td style={{ padding: '7px 8px', color: s.dcto > 0 ? C.purple : C.textMuted }}>{s.dcto > 0 ? s.dcto + 'm' : '-'}</td>
                               <td style={{ padding: '7px 8px' }}>{s.min + 'm'}</td>
-
                               {MONTHS_SHORT.map((_, mi) => {
                                 const ch = getMonthlyCharge(s, mi);
                                 yt += ch.amount;
                                 const cc = !ch.active ? C.textMuted : ch.isCustom ? '#1D4ED8' : ch.isDiscount ? '#B45309' : C.primary;
                                 const cb = !ch.active ? 'transparent' : ch.isCustom ? '#DBEAFE' : ch.isDiscount ? C.warningLight : C.primaryLight;
                                 return (
-                                  <td
-                                    key={mi}
-                                    className="month-cell"
-                                    style={{
-                                      padding: '7px 6px',
-                                      textAlign: 'right',
-                                      fontWeight: 600,
-                                      fontSize: 10,
-                                      whiteSpace: 'nowrap',
-                                      background: mi === CURRENT_MONTH ? C.primaryBg : undefined,
-                                      color: cc,
-                                      cursor: 'pointer',
-                                    }}
-                                    onClick={() => {
-                                      setForm({ customAmount: ch.amount > 0 ? String(ch.amount) : '', removeCustom: false });
-                                      setModal({ type: 'editMonthCharge', data: { seller: s, monthIdx: mi, year: CURRENT_YEAR } });
-                                    }}
-                                    title="Click para editar"
-                                  >
-                                    {ch.active ? (
-                                      <span style={{ padding: '2px 5px', borderRadius: 4, background: cb, display: 'inline-block' }}>
-                                        {fmt(ch.amount)}
-                                        {ch.isProrated ? '*' : ''}
-                                        {ch.isCustom ? '•' : ''}
-                                      </span>
-                                    ) : (
-                                      '-'
-                                    )}
+                                  <td key={mi} className="month-cell" style={{ padding: '7px 6px', textAlign: 'right', fontWeight: 600, fontSize: 10, whiteSpace: 'nowrap', background: mi === CURRENT_MONTH ? C.primaryBg : undefined, color: cc, cursor: 'pointer' }}
+                                    onClick={() => { setForm({ customAmount: ch.amount > 0 ? String(ch.amount) : '', removeCustom: false }); setModal({ type: 'editMonthCharge', data: { seller: s, monthIdx: mi, year: CURRENT_YEAR } }); }} title="Click para editar">
+                                    {ch.active ? (<span style={{ padding: '2px 5px', borderRadius: 4, background: cb, display: 'inline-block' }}>{fmt(ch.amount)}{ch.isProrated ? '*' : ''}{ch.isCustom ? '.' : ''}</span>) : '-'}
                                   </td>
                                 );
                               })}
-
                               <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: C.primaryDark, background: C.primaryBg }}>{fmt(yt)}</td>
                             </tr>
                           );
                         });
                       }
-
                       return rows;
                     })}
                   </tbody>
                 </table>
               </div>
-
-              <div style={{ padding: '6px 16px', fontSize: 10, color: C.textMuted, borderTop: '1px solid ' + C.borderLight }}>
-                {'* = prorrateado | • = cobro personalizado | Click en celda para editar | Click en gerencia para expandir/contraer'}
-              </div>
+              <div style={{ padding: '6px 16px', fontSize: 10, color: C.textMuted, borderTop: '1px solid ' + C.borderLight }}>{'* = prorrateado | . = cobro personalizado | Click en celda para editar'}</div>
             </div>
 
-            {/* DETALLE DE COBROS - PREMIUM */}
+            {/* DETALLE PREMIUM */}
             <div className="card" style={{ overflow: 'hidden' }}>
-              <div
-                style={{
-                  padding: '12px 16px',
-                  borderBottom: '1px solid ' + C.border,
-                  background: C.bgAlt,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>
-                  Detalle de Cobros - Premium
-                </h3>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid ' + C.border, background: C.bgAlt, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Detalle de Cobros - Premium</h3>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-sm btn-ghost" onClick={expandAllPremium}>
-                    Expandir Premium
-                  </button>
-                  <button className="btn btn-sm btn-ghost" onClick={collapseAllPremium}>
-                    Contraer Premium
-                  </button>
+                  <button className="btn btn-sm btn-ghost" onClick={expandAllPremium}>Expandir Premium</button>
+                  <button className="btn btn-sm btn-ghost" onClick={collapseAllPremium}>Contraer Premium</button>
                 </div>
               </div>
-
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 1200 }}>
                   <thead>
                     <tr style={{ background: C.bgAlt, borderBottom: '2px solid ' + C.border }}>
-                      {['Seller', 'ID', 'KAM', 'Plan', 'Tarifa', 'Dcto', 'Min'].map((h) => (
-                        <th
-                          key={h}
-                          style={{
-                            padding: '8px 8px',
-                            textAlign: 'left',
-                            fontWeight: 700,
-                            fontSize: 10,
-                            color: C.textMuted,
-                            textTransform: 'uppercase',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                      {MONTHS_SHORT.map((m, mi) => (
-                        <th
-                          key={m}
-                          style={{
-                            padding: '8px 6px',
-                            textAlign: 'right',
-                            fontWeight: 700,
-                            fontSize: 10,
-                            color: C.textMuted,
-                            whiteSpace: 'nowrap',
-                            background: mi === CURRENT_MONTH ? C.primaryBg : undefined,
-                          }}
-                        >
-                          {m}
-                        </th>
-                      ))}
-                      <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontSize: 10, color: C.textMuted, background: C.primaryBg }}>
-                        Total
-                      </th>
+                      {['Seller', 'ID', 'KAM', 'Plan', 'Tarifa', 'Dcto', 'Min'].map((h) => (<th key={h} style={{ padding: '8px 8px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: C.textMuted, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>))}
+                      {MONTHS_SHORT.map((m, mi) => (<th key={m} style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700, fontSize: 10, color: C.textMuted, whiteSpace: 'nowrap', background: mi === CURRENT_MONTH ? C.primaryBg : undefined }}>{m}</th>))}
+                      <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontSize: 10, color: C.textMuted, background: C.primaryBg }}>Total</th>
                     </tr>
                   </thead>
                   <tbody>
                     {groupedPremiumByCat.flatMap((group) => {
                       const isExpanded = !!expandedCatsPremium[group.cat];
                       const rows: ReactNode[] = [];
-
                       rows.push(
-                        <tr
-                          key={'cat-prem-' + group.cat}
-                          style={{ background: C.bgAlt, cursor: 'pointer', borderBottom: '1px solid ' + C.border }}
-                          onClick={() => toggleCatPremium(group.cat)}
-                        >
+                        <tr key={'cat-prem-' + group.cat} style={{ background: C.bgAlt, cursor: 'pointer', borderBottom: '1px solid ' + C.border }} onClick={() => toggleCatPremium(group.cat)}>
                           <td colSpan={7} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, color: C.text }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                              <span
-                                style={{
-                                  display: 'inline-block',
-                                  width: 16,
-                                  textAlign: 'center',
-                                  fontSize: 10,
-                                  color: C.textMuted,
-                                  transition: 'transform .2s',
-                                  transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                                }}
-                              >
-                                ▶
-                              </span>
+                              <span style={{ display: 'inline-block', width: 16, textAlign: 'center', fontSize: 10, color: C.textMuted, transition: 'transform .2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
                               Premium
                               <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 500 }}>{'(' + group.sellers.length + ' sellers)'}</span>
                             </span>
                           </td>
-                          {group.monthTotals.map((mt, mi) => (
-                            <td
-                              key={mi}
-                              style={{
-                                padding: '8px 6px',
-                                textAlign: 'right',
-                                fontWeight: 700,
-                                fontSize: 11,
-                                color: C.purple,
-                                background: mi === CURRENT_MONTH ? C.primaryBg : undefined,
-                              }}
-                            >
-                              {mt > 0 ? fmt(mt) : '-'}
-                            </td>
-                          ))}
-                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: C.purple, background: C.primaryBg, fontSize: 11 }}>
-                            {fmt(group.yearTotal)}
-                          </td>
+                          {group.monthTotals.map((mt, mi) => (<td key={mi} style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700, fontSize: 11, color: C.purple, background: mi === CURRENT_MONTH ? C.primaryBg : undefined }}>{mt > 0 ? fmt(mt) : '-'}</td>))}
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: C.purple, background: C.primaryBg, fontSize: 11 }}>{fmt(group.yearTotal)}</td>
                         </tr>
                       );
-
                       if (isExpanded) {
-                        const ps = group.planBreakdown.Premium.sellers;
-                        const pc = PLAN_COLORS.Premium;
-
-                        ps.forEach((s) => {
+                        group.planBreakdown.Premium.sellers.forEach((s) => {
                           let yt = 0;
                           rows.push(
                             <tr key={'prem-' + s.sid} className="row-hover" style={{ borderBottom: '1px solid ' + C.borderLight }}>
                               <td style={{ padding: '7px 8px 7px 28px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                                 {s.seller}
-                                {s.status === 'Fuga' && (
-  <span style={{ marginLeft: 4, fontSize: 9, color: C.danger, fontWeight: 700 }}>FUGA</span>
-)}
-{s.status === 'Pausa' && (
-  <span style={{ marginLeft: 4, fontSize: 9, color: C.warning, fontWeight: 700 }}>PAUSA</span>
-)}
+                                {s.status === 'Fuga' && <span style={{ marginLeft: 4, fontSize: 9, color: C.danger, fontWeight: 700 }}>FUGA</span>}
+                                {s.status === 'Pausa' && <span style={{ marginLeft: 4, fontSize: 9, color: C.warning, fontWeight: 700 }}>PAUSA</span>}
                               </td>
                               <td style={{ padding: '7px 8px', color: C.textMuted, fontSize: 10 }}>{s.sid}</td>
                               <td style={{ padding: '7px 8px', color: C.textSec, fontSize: 10 }}>{s.kam}</td>
-                              <td style={{ padding: '7px 8px' }}>
-                                <Pill color={pc}>Premium</Pill>
-                              </td>
+                              <td style={{ padding: '7px 8px' }}><Pill color={PLAN_COLORS.Premium}>Premium</Pill></td>
                               <td style={{ padding: '7px 8px', fontWeight: 600 }}>{fmt(s.tarifa)}</td>
                               <td style={{ padding: '7px 8px', color: s.dcto > 0 ? C.purple : C.textMuted }}>{s.dcto > 0 ? s.dcto + 'm' : '-'}</td>
                               <td style={{ padding: '7px 8px' }}>{s.min + 'm'}</td>
-
                               {MONTHS_SHORT.map((_, mi) => {
                                 const ch = getMonthlyCharge(s, mi);
                                 yt += ch.amount;
                                 const cc = !ch.active ? C.textMuted : ch.isCustom ? '#1D4ED8' : ch.isDiscount ? '#B45309' : C.primary;
                                 const cb = !ch.active ? 'transparent' : ch.isCustom ? '#DBEAFE' : ch.isDiscount ? C.warningLight : C.primaryLight;
                                 return (
-                                  <td
-                                    key={mi}
-                                    className="month-cell"
-                                    style={{
-                                      padding: '7px 6px',
-                                      textAlign: 'right',
-                                      fontWeight: 600,
-                                      fontSize: 10,
-                                      whiteSpace: 'nowrap',
-                                      background: mi === CURRENT_MONTH ? C.primaryBg : undefined,
-                                      color: cc,
-                                      cursor: 'pointer',
-                                    }}
-                                    onClick={() => {
-                                      setForm({ customAmount: ch.amount > 0 ? String(ch.amount) : '', removeCustom: false });
-                                      setModal({ type: 'editMonthCharge', data: { seller: s, monthIdx: mi, year: CURRENT_YEAR } });
-                                    }}
-                                    title="Click para editar"
-                                  >
-                                    {ch.active ? (
-                                      <span style={{ padding: '2px 5px', borderRadius: 4, background: cb, display: 'inline-block' }}>
-                                        {fmt(ch.amount)}
-                                        {ch.isProrated ? '*' : ''}
-                                        {ch.isCustom ? '•' : ''}
-                                      </span>
-                                    ) : (
-                                      '-'
-                                    )}
+                                  <td key={mi} className="month-cell" style={{ padding: '7px 6px', textAlign: 'right', fontWeight: 600, fontSize: 10, whiteSpace: 'nowrap', background: mi === CURRENT_MONTH ? C.primaryBg : undefined, color: cc, cursor: 'pointer' }}
+                                    onClick={() => { setForm({ customAmount: ch.amount > 0 ? String(ch.amount) : '', removeCustom: false }); setModal({ type: 'editMonthCharge', data: { seller: s, monthIdx: mi, year: CURRENT_YEAR } }); }} title="Click para editar">
+                                    {ch.active ? (<span style={{ padding: '2px 5px', borderRadius: 4, background: cb, display: 'inline-block' }}>{fmt(ch.amount)}{ch.isProrated ? '*' : ''}{ch.isCustom ? '.' : ''}</span>) : '-'}
                                   </td>
                                 );
                               })}
-
                               <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: C.primaryDark, background: C.primaryBg }}>{fmt(yt)}</td>
                             </tr>
                           );
                         });
                       }
-
                       return rows;
                     })}
                   </tbody>
                 </table>
               </div>
-
-              <div style={{ padding: '6px 16px', fontSize: 10, color: C.textMuted, borderTop: '1px solid ' + C.borderLight }}>
-                {'* = prorrateado | • = cobro personalizado | Click en celda para editar | Click en gerencia para expandir/contraer'}
-              </div>
+              <div style={{ padding: '6px 16px', fontSize: 10, color: C.textMuted, borderTop: '1px solid ' + C.borderLight }}>{'* = prorrateado | . = cobro personalizado | Click en celda para editar'}</div>
             </div>
 
-            {/* Funnel + Categories */}
             <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div className="card" style={{ padding: 18 }}>
                 <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Funnel</h3>
@@ -2686,79 +1892,16 @@ const weeklyChart = useMemo(() => {
                     <XAxis dataKey="name" tick={{ fill: C.textSec, fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: C.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={{ background: C.bgCard, border: '1px solid ' + C.border, borderRadius: 10, fontSize: 12 }} />
-                    <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                      {funnel.map((e, i) => (
-                        <Cell key={i} fill={e.fill} fillOpacity={0.85} />
-                      ))}
-                    </Bar>
+                    <Bar dataKey="count" radius={[6, 6, 0, 0]}>{funnel.map((e, i) => (<Cell key={i} fill={e.fill} fillOpacity={0.85} />))}</Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-
               <div className="card" style={{ padding: 18 }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>
-                  Sellers por Gerencia
-                </h3>
-
+                <h3 style={{ margin: '0 0 12px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Sellers por Gerencia</h3>
                 {CATEGORIAS.map((cat) => {
                   const count = sellers.filter((s) => s.sec === cat).length;
                   const act = sellers.filter((s) => s.sec === cat && s.status === 'Iniciado').length;
                   const rev = sellers.filter((s) => s.sec === cat && s.status === 'Iniciado').reduce((sum, s) => sum + s.tarifa, 0);
-                  const SellerPerfDetail = ({ p }: { p: any }) => {
-                    const g = p.nmv_ly > 0 ? ((p.nmv - p.nmv_ly) / p.nmv_ly * 100).toFixed(1) : '0';
-                    const spR = p.nmv > 0 ? (p.total_spend / p.nmv * 100).toFixed(1) : '0';
-                    const olt = p.promise_total > 0 ? ((p.promise_24h_fbs + p.promise_24h_fbf) / p.promise_total * 100).toFixed(1) : '0';
-                    const promoR = p.nmv > 0 ? ((p.ou_autogestionado + p.fs_autogestionado) / p.nmv * 100).toFixed(1) : '0';
-                    const genSS = (p.skus_branded + p.skus_generic) > 0 ? (p.skus_generic / (p.skus_branded + p.skus_generic) * 100).toFixed(1) : '0';
-                    const radarD = [
-                      { m: 'Fplus', v: ((p.final_score || 0) / 5) * 100 }, { m: 'Content', v: p.content_score || 0 },
-                      { m: 'SP', v: Math.min(Number(spR) / 6 * 100, 100) }, { m: 'OLT24', v: Number(olt) },
-                      { m: 'Promo', v: Math.min(Number(promoR) / 15 * 100, 100) }, { m: 'Gen', v: Math.max(100 - Number(genSS) * 5, 0) },
-                    ];
-                    const sl = sellers.find((s) => s.sid === p.sellerId);
-                    return (
-                      <div className="fi">
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-                          <KpiCard label="NMV MtD" value={fmt(p.nmv)} color={Number(g) > 0 ? C.primary : C.danger} sub={<span style={{ fontSize: 11, color: Number(g) > 0 ? C.primary : C.danger, fontWeight: 700 }}>YoY {Number(g) > 0 ? '+' : ''}{g}%</span>} />
-                          <KpiCard label="Fplus" value={String(Number(p.final_score || 0).toFixed(2))} color={(p.final_score || 0) >= 4.8 ? C.primary : C.warning} />
-                          <KpiCard label="Content" value={String(Number(p.content_score || 0).toFixed(1))} color={(p.content_score || 0) >= 85 ? C.primary : C.danger} />
-                          <KpiCard label="SP Ratio" value={spR + '%'} color={Number(spR) > 0 ? C.tertiary : C.danger} />
-                          <KpiCard label="OLT 24h" value={olt + '%'} color={Number(olt) >= 30 ? C.cyan : C.danger} />
-                          <KpiCard label="Promo" value={promoR + '%'} color={Number(promoR) > 0 ? C.purple : C.danger} />
-                        </div>
-                        <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                          <div className="card" style={{ padding: 16 }}>
-                            <h3 style={{ margin: '0 0 10px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Scorecard</h3>
-                            <ResponsiveContainer width="100%" height={180}><RadarChart data={radarD}><PolarGrid stroke={C.border} /><PolarAngleAxis dataKey="m" tick={{ fill: C.textSec, fontSize: 10 }} /><PolarRadiusAxis tick={false} domain={[0, 100]} /><Radar dataKey="v" stroke={C.primaryDark} fill={C.primary} fillOpacity={0.18} strokeWidth={2} /></RadarChart></ResponsiveContainer>
-                          </div>
-                          <div className="card" style={{ padding: 16 }}>
-                            <h3 style={{ margin: '0 0 10px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Metricas</h3>
-                            <RTable columns={[
-                              { label: 'Metrica', key: 'metric' },
-                              { label: 'Valor', key: 'value', align: 'right', render: (v: any) => <strong>{v}</strong> },
-                              { label: 'Logica', key: 'logic' },
-                              { label: '', key: 'st', align: 'center' },
-                            ]} data={[
-                              { metric: 'Fplus', value: Number(p.final_score || 0).toFixed(2), logic: 'AVG(final_score)', st: (p.final_score || 0) >= 5 ? '\u2705' : (p.final_score || 0) >= 4.8 ? '\u26A0\uFE0F' : '\u{1F534}' },
-                              { metric: 'Content', value: Number(p.content_score || 0).toFixed(1), logic: 'AVG(content_score)', st: (p.content_score || 0) >= 85 ? '\u2705' : (p.content_score || 0) >= 70 ? '\u26A0\uFE0F' : '\u{1F534}' },
-                              { metric: 'SP Ratio', value: spR + '%', logic: 'spend/nmv', st: Number(spR) >= 3 ? '\u2705' : Number(spR) > 0 ? '\u26A0\uFE0F' : '\u{1F534}' },
-                              { metric: 'OLT 24h', value: olt + '%', logic: '(24h_fbs+fbf)/total', st: Number(olt) >= 40 ? '\u2705' : Number(olt) >= 20 ? '\u26A0\uFE0F' : '\u{1F534}' },
-                              { metric: 'Promo', value: promoR + '%', logic: '(ou+fs)/nmv', st: Number(promoR) >= 5 ? '\u2705' : Number(promoR) > 0 ? '\u26A0\uFE0F' : '\u{1F534}' },
-                              { metric: '% Gen', value: genSS + '%', logic: 'GENERICO/total', st: Number(genSS) <= 3 ? '\u2705' : Number(genSS) <= 8 ? '\u26A0\uFE0F' : '\u{1F534}' },
-                            ]} />
-                            {sl && (
-                              <div style={{ marginTop: 12, padding: 10, background: C.primaryBg, borderRadius: 8, fontSize: 12 }}>
-                                <strong style={{ color: C.primaryDark }}>Cobros:</strong>{' '}
-                                <Pill color={PLAN_COLORS[sl.tipo]}>{sl.tipo}</Pill>{' '}
-                                Tarifa: {fmtFull(sl.tarifa)} - <Pill color={stC(sl.status)}>{sl.status}</Pill>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  };
-                
                   return (
                     <div key={cat} style={{ marginBottom: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
@@ -2766,15 +1909,7 @@ const weeklyChart = useMemo(() => {
                         <span style={{ color: C.textMuted, fontSize: 11 }}>{count + ' sellers - ' + act + ' activos - ' + fmt(rev)}</span>
                       </div>
                       <div style={{ height: 6, background: C.bgDark, borderRadius: 3, overflow: 'hidden' }}>
-                        <div
-                          style={{
-                            height: '100%',
-                            borderRadius: 3,
-                            transition: 'width .5s',
-                            width: (sellers.length > 0 ? (count / sellers.length) * 100 : 0) + '%',
-                            background: C.primary,
-                          }}
-                        />
+                        <div style={{ height: '100%', borderRadius: 3, transition: 'width .5s', width: (sellers.length > 0 ? (count / sellers.length) * 100 : 0) + '%', background: C.primary }} />
                       </div>
                     </div>
                   );
@@ -2783,7 +1918,9 @@ const weeklyChart = useMemo(() => {
             </div>
           </div>
         )}
- {tab === 'rendimiento' && (
+
+        {/* ═══ RENDIMIENTO ═══ */}
+        {tab === 'rendimiento' && (
           <div className="fi" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -2835,33 +1972,50 @@ const weeklyChart = useMemo(() => {
                   <div className="card" style={{ padding: 16 }}><h3 style={{ margin: '0 0 10px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>SKUs Genericos</h3><ResponsiveContainer width="100%" height={160}><ComposedChart data={weeklyChart}><CartesianGrid strokeDasharray="3 3" stroke={C.border} /><XAxis dataKey="week" tick={{ fill: C.textMuted, fontSize: 9 }} /><YAxis yAxisId="l" tick={{ fill: C.textMuted, fontSize: 9 }} /><YAxis yAxisId="r" orientation="right" tick={{ fill: C.textMuted, fontSize: 9 }} unit="%" /><Tooltip contentStyle={ttS} /><Bar yAxisId="l" dataKey="skusGeneric" name="Genericos" fill={C.danger} radius={[3, 3, 0, 0]} /><Line yAxisId="r" dataKey="genShare" name="Share%" stroke={C.warning} strokeWidth={2} dot={{ r: 3 }} /></ComposedChart></ResponsiveContainer></div>
                 </div>
               </>)}
-              <div className="card" style={{ padding: 16 }}><h3 style={{ margin: '0 0 10px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Alertas</h3><div style={{ maxHeight: 200, overflowY: 'auto' }}>{perfAlerts.map((a: any, i: number) => <AlertRow key={i} sev={a.sev} seller={a.seller} type={a.type} d={a.d} />)}</div></div>
-              <div className="card" style={{ overflow: 'hidden' }}><div style={{ padding: '12px 16px', borderBottom: '1px solid ' + C.border, background: C.bgAlt }}><h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Ranking Sellers</h3></div><div style={{ padding: 0 }}><RTable onRowClick={(r: any) => { setRendSub('seller'); setRendSellerPick(r); }} columns={[
-                { label: '#', key: 'rank', align: 'center' },
-                { label: 'Seller', key: 'seller_name', render: (v: any) => <strong style={{ color: C.primary }}>{v}</strong> },
-                { label: 'NMV', key: 'nmv', align: 'right', render: (v: any) => <strong>{fmt(v)}</strong> },
-                { label: 'YoY', key: 'yoy2', align: 'right', render: (v: any) => <span style={{ color: Number(v) > 0 ? C.primary : C.danger, fontWeight: 700 }}>{Number(v) > 0 ? '+' : ''}{v}%</span> },
-                { label: 'Fplus', key: 'final_score', align: 'center', render: (v: any) => <span style={{ color: (v || 0) >= 5 ? C.primary : (v || 0) >= 4.8 ? C.warning : C.danger, fontWeight: 700 }}>{Number(v || 0).toFixed(2)}</span> },
-                { label: 'Content', key: 'content_score', align: 'center', render: (v: any) => <span style={{ color: (v || 0) >= 85 ? C.primary : (v || 0) >= 70 ? C.warning : C.danger }}>{Number(v || 0).toFixed(0)}</span> },
-                { label: 'SP%', key: 'spR2', align: 'center' },
-                { label: 'OLT24', key: 'olt2', align: 'center' },
-                { label: 'Promo%', key: 'promoR2', align: 'center' },
-                { label: 'Gen%', key: 'genS2', align: 'center' },
-              ]} data={perfFiltered.map((p: any, i: number) => ({
-                ...p, rank: i + 1,
-                yoy2: (p.nmv_ly || 0) > 0 ? ((p.nmv - p.nmv_ly) / p.nmv_ly * 100).toFixed(1) : '0',
-                spR2: p.nmv > 0 ? (p.total_spend / p.nmv * 100).toFixed(1) + '%' : '0%',
-                olt2: p.promise_total > 0 ? ((p.promise_24h_fbs + p.promise_24h_fbf) / p.promise_total * 100).toFixed(1) + '%' : '0%',
-                promoR2: p.nmv > 0 ? ((p.ou_autogestionado + p.fs_autogestionado) / p.nmv * 100).toFixed(1) + '%' : '0%',
-                genS2: (p.skus_branded + p.skus_generic) > 0 ? (p.skus_generic / (p.skus_branded + p.skus_generic) * 100).toFixed(1) + '%' : '0%',
-              })).sort((a: any, b: any) => b.nmv - a.nmv)} /></div></div>
+              <div className="card" style={{ padding: 16 }}>
+                <h3 style={{ margin: '0 0 10px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Alertas</h3>
+                <div style={{ maxHeight: 200, overflowY: 'auto' }}>{perfAlerts.map((a: any, i: number) => <AlertRow key={i} sev={a.sev} seller={a.seller} type={a.type} d={a.d} />)}</div>
+              </div>
+              <div className="card" style={{ overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid ' + C.border, background: C.bgAlt }}>
+                  <h3 style={{ margin: 0, fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>Ranking Sellers</h3>
+                </div>
+                <RTable onRowClick={(r: any) => { setRendSub('seller'); setRendSellerPick(r); }} columns={[
+                  { label: '#', key: 'rank', align: 'center' },
+                  { label: 'Seller', key: 'seller_name', render: (v: any) => <strong style={{ color: C.primary }}>{v}</strong> },
+                  { label: 'NMV', key: 'nmv', align: 'right', render: (v: any) => <strong>{fmt(v)}</strong> },
+                  { label: 'YoY', key: 'yoy2', align: 'right', render: (v: any) => <span style={{ color: Number(v) > 0 ? C.primary : C.danger, fontWeight: 700 }}>{Number(v) > 0 ? '+' : ''}{v}%</span> },
+                  { label: 'Fplus', key: 'final_score', align: 'center', render: (v: any) => <span style={{ color: (v || 0) >= 5 ? C.primary : (v || 0) >= 4.8 ? C.warning : C.danger, fontWeight: 700 }}>{Number(v || 0).toFixed(2)}</span> },
+                  { label: 'Content', key: 'content_score', align: 'center', render: (v: any) => <span style={{ color: (v || 0) >= 85 ? C.primary : (v || 0) >= 70 ? C.warning : C.danger }}>{Number(v || 0).toFixed(0)}</span> },
+                  { label: 'SP%', key: 'spR2', align: 'center' },
+                  { label: 'OLT24', key: 'olt2', align: 'center' },
+                  { label: 'Promo%', key: 'promoR2', align: 'center' },
+                  { label: 'Gen%', key: 'genS2', align: 'center' },
+                ]} data={perfFiltered.map((p: any, i: number) => ({
+                  ...p, rank: i + 1,
+                  yoy2: (p.nmv_ly || 0) > 0 ? ((p.nmv - p.nmv_ly) / p.nmv_ly * 100).toFixed(1) : '0',
+                  spR2: p.nmv > 0 ? (p.total_spend / p.nmv * 100).toFixed(1) + '%' : '0%',
+                  olt2: p.promise_total > 0 ? ((p.promise_24h_fbs + p.promise_24h_fbf) / p.promise_total * 100).toFixed(1) + '%' : '0%',
+                  promoR2: p.nmv > 0 ? ((p.ou_autogestionado + p.fs_autogestionado) / p.nmv * 100).toFixed(1) + '%' : '0%',
+                  genS2: (p.skus_branded + p.skus_generic) > 0 ? (p.skus_generic / (p.skus_branded + p.skus_generic) * 100).toFixed(1) + '%' : '0%',
+                })).sort((a: any, b: any) => b.nmv - a.nmv)} />
+              </div>
             </>)}
 
             {/* KAM */}
             {!perfLoading && perfData.length > 0 && rendSub === 'kam' && (<>
               <div className="card" style={{ padding: 16 }}>
                 <h3 style={{ margin: '0 0 10px', fontSize: 13, color: C.textSec, fontWeight: 700, textTransform: 'uppercase' }}>NMV por KAM</h3>
-                <ResponsiveContainer width="100%" height={190}><BarChart data={perfKamStats} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke={C.border} /><XAxis type="number" tick={{ fill: C.textMuted, fontSize: 9 }} tickFormatter={(v: any) => fmt(v)} /><YAxis type="category" dataKey="kam" width={150} tick={{ fill: C.textSec, fontSize: 10 }} /><Tooltip contentStyle={ttS} formatter={(v: any) => fmt(Number(v))} /><Bar dataKey="nmvLY" name="LY" fill={C.bgDark} /><Bar dataKey="nmv" name="NMV" fill={C.primary} radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={190}>
+                  <BarChart data={perfKamStats} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                    <XAxis type="number" tick={{ fill: C.textMuted, fontSize: 9 }} tickFormatter={(v: any) => fmt(v)} />
+                    <YAxis type="category" dataKey="kam" width={150} tick={{ fill: C.textSec, fontSize: 10 }} />
+                    <Tooltip contentStyle={ttS} formatter={(v: any) => fmt(Number(v))} />
+                    <Bar dataKey="nmvLY" name="LY" fill={C.bgDark} />
+                    <Bar dataKey="nmv" name="NMV" fill={C.primary} radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 14 }}>
                 {perfKamStats.map((k: any) => (
@@ -2880,7 +2034,7 @@ const weeklyChart = useMemo(() => {
               </div>
             </>)}
 
-            {/* SELLER */}
+            {/* SELLER — FIX: ternario completo con SellerPerfDetail */}
             {!perfLoading && perfData.length > 0 && rendSub === 'seller' && (<>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <select value={rendSellerPick ? rendSellerPick.sellerId : ''} onChange={(e) => { const s = enrichedPerf.find((x: any) => x.sellerId === e.target.value); setRendSellerPick(s || null); }} style={{ minWidth: 280 }}>
@@ -2889,13 +2043,14 @@ const weeklyChart = useMemo(() => {
                 </select>
                 {rendSellerPick && <span style={{ fontSize: 12, color: C.textMuted }}>{rendSellerPick.kam}</span>}
               </div>
-              {!rendSellerPick ? (
-                <div style={{ textAlign: 'center', padding: 50, color: C.textMuted }}><div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>Selecciona un seller</div>
-              ) :}
+              {!rendSellerPick
+                ? <div style={{ textAlign: 'center', padding: 50, color: C.textMuted }}><div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>Selecciona un seller</div>
+                : <SellerPerfDetail p={rendSellerPick} sellers={sellers} />
+              }
             </>)}
           </div>
         )}
-       
+
       </div>
     </div>
   );
